@@ -1,14 +1,17 @@
-import time
 import logging
-from globus_sdk import ConfidentialAppAuthClient, AccessTokenAuthorizer, SearchClient
+import time
+
+from globus_sdk import AccessTokenAuthorizer, ConfidentialAppAuthClient, SearchClient
 from globus_sdk.scopes import SearchScopes
+
+from settings import globus_search, globus_search_client_credentials
 
 
 class ConsumerSearchClient:
-    def __init__(self, credentials, search_index):
+    def __init__(self):
         confidential_client = ConfidentialAppAuthClient(
-            client_id=credentials.get("client_id"),
-            client_secret=credentials.get("client_secret"),
+            client_id=globus_search_client_credentials.get("client_id"),
+            client_secret=globus_search_client_credentials.get("client_secret"),
         )
         token_response = confidential_client.oauth2_client_credentials_tokens(
             requested_scopes=SearchScopes.all,
@@ -16,7 +19,7 @@ class ConsumerSearchClient:
         search_tokens = token_response.by_resource_server.get("search.api.globus.org")
         authorizer = AccessTokenAuthorizer(search_tokens.get("access_token"))
         self.search_client = SearchClient(authorizer=authorizer)
-        self.esgf_index = search_index
+        self.esgf_index = globus_search.get("index")
 
     def convert_assets(self, item):
         converted_assets = []
@@ -62,7 +65,7 @@ class ConsumerSearchClient:
             if state == "SUCCESS":
                 return True
             if state == "FAILED":
-                logging.errort(f"Ingestion task {task_id} failed")
+                logging.error(f"Ingestion task {task_id} failed")
                 return False
             time.sleep(1)
         return True

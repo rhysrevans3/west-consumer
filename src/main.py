@@ -1,14 +1,21 @@
 import logging
-from globus import ConsumerSearchClient
+
 from consumer import KafkaConsumerService
-from settings import event_stream, globus_search_client_credentials, globus_search
+from settings import consumer, event_stream
+
+if consumer == "ceda":
+    from ceda import ConsumerSearchClient
+else:
+    from globus import ConsumerSearchClient
 
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
 
 if __name__ == "__main__":
-    message_processor = ConsumerSearchClient(globus_search_client_credentials, globus_search.get("index"))
+    message_processor = ConsumerSearchClient()
 
     consumer_service = KafkaConsumerService(
         event_stream.get("config"),

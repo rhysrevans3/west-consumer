@@ -1,6 +1,8 @@
 import os
-from utils import get_secret
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from utils import get_secret
 
 # ESGF2 Globus Project
 project_id = "cae45630-2a4b-47b9-b704-d870e341da67"
@@ -10,6 +12,8 @@ publisher = {
     "client_id": "ec5f07c0-7ed8-4f2b-94f2-ddb6f8fc91a3",
     "redirect_uri": "https://auth.globus.org/v2/web/auth-code",
 }
+
+consumer = "globus"
 
 # ESGF2 STAC Transaction API service
 stac_api = {
@@ -62,3 +66,19 @@ globus_search = {
     # "index": "d7814ff7-51a9-4155-8b84-97e84600acd7",
     "index": "f037bb33-3413-448b-8486-8400bee5181a",
 }
+
+
+class CEDAClientSettings(BaseSettings):
+    """
+    CEDA settings
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
+    token_url: str
+    client_id: str
+    client_secret: str
+    stac_server: str
