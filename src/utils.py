@@ -1,5 +1,6 @@
-import logging
 import json
+import logging
+
 import boto3
 import urllib3
 
@@ -15,7 +16,7 @@ def get_secret(config):
         secret_dict = json.loads(secret)
         return secret_dict
     except Exception as e:
-        logging.errort(f"Error retrieving secret: {e}")
+        logging.error(f"Error retrieving secret: {e}")
         raise e
 
 
