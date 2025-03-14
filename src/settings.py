@@ -48,6 +48,7 @@ event_stream = {
         "enable.auto.commit": False,
     },
     "topics": ["esgf2"],
+    "timeout_ms": 5000,
 }
 
 if os.environ.get("KAFKA_CLIENT_DEBUG"):

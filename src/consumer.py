@@ -1,57 +1,55 @@
 import logging
-import json
-from confluent_kafka import Consumer, TopicPartition, KafkaException
+
+from confluent_kafka import Consumer, KafkaException
+from esgf_playground_utils.models.kafka import KafkaEvent
+from pydantic_core import ValidationError
+
+from settings import consumer, event_stream
+
+if consumer == "ceda":
+    from ceda import ConsumerSearchClient
+else:
+    from globus import ConsumerSearchClient
 
 
 class KafkaConsumerService:
-    def __init__(self, kafka_config, topics, message_processor):
-        self.kafka_config = kafka_config
-        self.topics = topics
-        self.message_processor = message_processor
-        self.consumer = Consumer(self.kafka_config)
-
-    def process_messages(self, messages):
-        messages_data = []
-        for msg in messages:
-            if msg.error():
-                logging.error(f"Message error at offset {msg.offset()}: {msg.error()}.")
-                return False
-            try:
-                data = json.loads(msg.value())
-                messages_data.append(data)
-            except json.JSONDecodeError as e:
-                logging.error(f"Data deserialization error at offset {msg.offset()}: {e}.")
-                return False
-        return messages_data
+    def __init__(self):
+        self.message_processor = ConsumerSearchClient()
+        self.consumer = Consumer(event_stream.get("config"))
 
     def start(self):
-        self.consumer.subscribe(self.topics)
+        self.consumer.subscribe(event_stream.topics)
         try:
-            logging.info(f"Kafka consumer started. Subscribed to topics: {self.topics}")
+            logging.info(
+                "Kafka consumer started. Subscribed to topics: %s", event_stream.topics
+            )
             while True:
-                messages = self.consumer.consume(num_messages=50, timeout=5.0)
-                if not messages:
+                msg = self.consumer.poll(
+                    timeout_ms=event_stream.get("timeout_ms", 5000)
+                )
+                if msg is None:
                     continue
 
-                logging.info(f"Consumed {len(messages)} messages")
-                first_msg = messages[0]
-                self.seek_partition = TopicPartition(first_msg.topic(), first_msg.partition(), first_msg.offset())
+                if msg.error():
+                    logging.error(
+                        "Message error at offset %s: %s.", msg.offset(), msg.error()
+                    )
 
-                messages_data = self.process_messages(messages)
-                if not messages_data:
-                    self.consumer.seek(self.seek_partition)
-                    continue
+                data = KafkaEvent.model_validate(msg.value())
 
-                if not self.message_processor.ingest(messages_data):
-                    self.consumer.seek(self.seek_partition)
-                    continue
+                self.message_processor.ingest(data)
 
-                self.consumer.commit(message=messages[-1], asynchronous=False)
+                self.consumer.commit(message=msg, asynchronous=False)
 
         except KeyboardInterrupt:
             logging.info("Kafka consumer interrupted. Exiting...")
+
         except KafkaException as e:
-            logging.error(f"Kafka exception: {e}")
+            logging.error("Kafka exception: %s", e)
+
+        except ValidationError as e:
+            logging.error("Malformed Kafka event: %s", e)
+
         finally:
             logging.info("Closing Kafka consumer...")
             self.consumer.close()
