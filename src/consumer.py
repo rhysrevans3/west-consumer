@@ -18,28 +18,31 @@ class KafkaConsumerService:
         self.consumer = Consumer(event_stream.get("config"))
 
     def start(self):
-        self.consumer.subscribe(event_stream.topics)
+        self.consumer.subscribe(event_stream.get("topics"))
+
         try:
             logging.info(
-                "Kafka consumer started. Subscribed to topics: %s", event_stream.topics
+                "Kafka consumer started. Subscribed to topics: %s",
+                event_stream.get("topics"),
             )
+
             while True:
-                msg = self.consumer.poll(
-                    timeout_ms=event_stream.get("timeout_ms", 5000)
-                )
-                if msg is None:
+                message = self.consumer.poll(timeout_ms=event_stream.get("timeout_ms", 5000))
+                if message is None:
                     continue
 
-                if msg.error():
+                if message.error():
                     logging.error(
-                        "Message error at offset %s: %s.", msg.offset(), msg.error()
+                        "Message error at offset %s: %s.",
+                        message.offset(),
+                        message.error(),
                     )
 
-                data = KafkaEvent.model_validate(msg.value())
+                data = KafkaEvent.model_validate(message.value())
 
                 self.message_processor.ingest(data)
 
-                self.consumer.commit(message=msg, asynchronous=False)
+                self.consumer.commit(message=message, asynchronous=False)
 
         except KeyboardInterrupt:
             logging.info("Kafka consumer interrupted. Exiting...")
@@ -52,4 +55,5 @@ class KafkaConsumerService:
 
         finally:
             logging.info("Closing Kafka consumer...")
+
             self.consumer.close()
