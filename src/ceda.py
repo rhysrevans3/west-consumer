@@ -3,12 +3,11 @@ from typing import Any
 from urllib.parse import urljoin
 
 import httpx
-from esgf_playground_utils.models.item import CMIP6Item
 from esgf_playground_utils.models.kafka import CreatePayload, KafkaEvent, PatchPayload, RevokePayload, UpdatePayload
 from httpx_auth import OAuth2ClientCredentials
-from stac_fastapi.extensions.core.transaction.request import PartialItem, PatchOperation
-
 from settings import CEDAClientSettings
+from stac_fastapi.extensions.core.transaction.request import PartialItem, PatchOperation
+from stac_pydantic.item import Item
 
 
 class ConsumerSearchClient:
@@ -29,13 +28,13 @@ class ConsumerSearchClient:
     def create_item(
         self,
         collection_id: str,
-        item: CMIP6Item,
+        item: Item,
     ) -> None:
         """Create item
 
         Args:
             collection_id (str): item's collection ID
-            item (CMIP6Item): item to be generated
+            item (Item): item to be generated
         """
 
         url = urljoin(
@@ -96,14 +95,14 @@ class ConsumerSearchClient:
         self,
         collection_id: str,
         item_id: str,
-        item: CMIP6Item,
+        item: Item,
     ) -> None:
         """Update item
 
         Args:
             collection_id (str): item's collection ID
             item_id (str): item's ID
-            item (CMIP6Item): item to be updated
+            item (Item): item to be updated
         """
 
         url = urljoin(
