@@ -83,3 +83,4 @@ class CEDAClientSettings(BaseSettings):
     client_id: str
     client_secret: str
     stac_server: str
+    error_topic: str

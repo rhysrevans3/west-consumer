@@ -1,13 +1,16 @@
+import json
 import logging
-from typing import Any
 from urllib.parse import urljoin
 
 import httpx
+from confluent_kafka import Message as KafkaMessage
 from esgf_playground_utils.models.kafka import CreatePayload, KafkaEvent, PatchPayload, RevokePayload, UpdatePayload
 from httpx_auth import OAuth2ClientCredentials
-from settings import CEDAClientSettings
+from pydantic_core import ValidationError
 from stac_fastapi.extensions.core.transaction.request import PartialItem, PatchOperation
 from stac_pydantic.item import Item
+
+from settings import CEDAClientSettings
 
 
 class ConsumerSearchClient:
@@ -74,7 +77,7 @@ class ConsumerSearchClient:
         )
 
         logging.info("Patching %s to %s", item_id, url)
-        response = self.client.put(
+        response = self.client.patch(
             url,
             json=[op.model_dump() for op in patch] if isinstance(patch, list) else patch.model_dump(),
             auth=self.auth,
@@ -159,7 +162,7 @@ class ConsumerSearchClient:
                 value=response.content,
             )
 
-    def ingest(self, events: list[dict[str, Any]]) -> bool:
+    def ingest(self, message: KafkaMessage) -> bool:
         """Ingest Kafka events
 
         Args:
@@ -169,39 +172,67 @@ class ConsumerSearchClient:
             bool: true if ingestion successful
         """
 
-        for data in events:
+        if message.error():
+            logging.error(
+                "Message error at offset %s: %s.",
+                message.offset(),
+                message.error(),
+            )
+            self.error_producer.produce(
+                topic=self.settings.error_topic,
+                key="message_error",
+                value=f"Message error at offset {message.offset()}:{message.error()}",
+            )
+            return False
+
+        data = json.loads(message.value().decode("utf8"))
+
+        logging.error(
+            "Message data %s.",
+            data,
+        )
+
+        try:
             event = KafkaEvent.model_validate(data)
 
-            match event.data.payload:
+        except ValidationError as e:
+            self.error_producer.produce(
+                topic=self.settings.error_topic,
+                key="message_error",
+                value=f"Validation error at offset {message.offset()}:{e}",
+            )
+            return False
 
-                case CreatePayload():
-                    self.create_item(
-                        collection_id=event.data.payload.collection_id,
-                        item=event.data.payload.item,
-                    )
-                    logging.info("Item %s created.", event.data.payload.item.id)
+        match event.data.payload:
 
-                case UpdatePayload():
-                    self.update_item(
-                        collection_id=event.data.payload.collection_id,
-                        item_id=event.data.payload.item_id,
-                        item=event.data.payload.item,
-                    )
-                    logging.info("Item %s updated.", event.data.payload.item.id)
+            case CreatePayload():
+                self.create_item(
+                    collection_id=event.data.payload.collection_id,
+                    item=event.data.payload.item,
+                )
+                logging.info("Item %s created.", event.data.payload.item.id)
 
-                case PatchPayload():
-                    self.patch_item(
-                        collection_id=event.data.payload.collection_id,
-                        item_id=event.data.payload.item_id,
-                        patch=event.data.payload.patch,
-                    )
-                    logging.info("Item %s patched.", event.data.payload.item_id)
+            case UpdatePayload():
+                self.update_item(
+                    collection_id=event.data.payload.collection_id,
+                    item_id=event.data.payload.item_id,
+                    item=event.data.payload.item,
+                )
+                logging.info("Item %s updated.", event.data.payload.item.id)
 
-                case RevokePayload(method="DELETE"):
-                    self.delete_item(
-                        collection_id=event.data.payload.collection_id,
-                        item_id=event.data.payload.item_id,
-                    )
-                    logging.info("Item %s deleted.", event.data.payload.item_id)
+            case PatchPayload():
+                self.patch_item(
+                    collection_id=event.data.payload.collection_id,
+                    item_id=event.data.payload.item_id,
+                    patch=event.data.payload.patch,
+                )
+                logging.info("Item %s patched.", event.data.payload.item_id)
+
+            case RevokePayload(method="DELETE"):
+                self.delete_item(
+                    collection_id=event.data.payload.collection_id,
+                    item_id=event.data.payload.item_id,
+                )
+                logging.info("Item %s deleted.", event.data.payload.item_id)
 
         return True

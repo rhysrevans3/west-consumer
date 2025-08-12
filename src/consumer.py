@@ -2,7 +2,6 @@ import logging
 
 from confluent_kafka import Consumer, KafkaException
 from esgf_playground_utils.models.kafka import KafkaEvent
-from pydantic_core import ValidationError
 
 from settings import consumer, event_stream
 
@@ -28,19 +27,15 @@ class KafkaConsumerService:
 
             while True:
                 message = self.consumer.poll(timeout_ms=event_stream.get("timeout_ms", 5000))
+                logging.info(
+                    "Kafka consuming message: %s",
+                    message,
+                )
+
                 if message is None:
                     continue
 
-                if message.error():
-                    logging.error(
-                        "Message error at offset %s: %s.",
-                        message.offset(),
-                        message.error(),
-                    )
-
-                data = KafkaEvent.model_validate(message.value())
-
-                self.message_processor.ingest(data)
+                self.message_processor.ingest(message)
 
                 self.consumer.commit(message=message, asynchronous=False)
 
@@ -49,9 +44,6 @@ class KafkaConsumerService:
 
         except KafkaException as e:
             logging.error("Kafka exception: %s", e)
-
-        except ValidationError as e:
-            logging.error("Malformed Kafka event: %s", e)
 
         finally:
             logging.info("Closing Kafka consumer...")
