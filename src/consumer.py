@@ -26,7 +26,9 @@ class KafkaConsumerService:
             )
 
             while True:
-                message = self.consumer.poll(timeout_ms=event_stream.get("timeout_ms", 5000))
+                message = self.consumer.poll(
+                    timeout_ms=event_stream.get("timeout_ms", 5000)
+                )
                 logging.info(
                     "Kafka consuming message: %s",
                     message,

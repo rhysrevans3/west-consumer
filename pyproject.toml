@@ -7,17 +7,21 @@ readme = "README.md"
 packages = [
     { include = "src" }
 ]
+package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.10"
-globus-sdk = "^3.46.0"
-confluent-kafka = "^2.6.0"
 boto3 = "^1.35.49"
 esgf_playground_utils = "1.0.5"
 pydantic-settings = "2.8.1"
 httpx = "0.28.1"
 httpx-auth = "0.23.1"
+confluent-kafka = "^2.6.0"
+globus-sdk = "^3.46.0"
+jsonpatch = "^1.33"
+python = "^3.10"
+python-dotenv = "^1.0.1"
+
 
 [build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]

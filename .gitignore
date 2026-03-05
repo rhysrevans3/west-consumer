@@ -7,3 +7,6 @@ dist
 build
 *.egg-info
 .python-version
+.python-version
+.env*
+.pytest*

@@ -37,6 +37,8 @@ class KafkaProducer(BaseProducer):
                 )
             delivery_reports.append((err, msg))
 
-        self.producer.produce(topic=topic, key=key, value=value, callback=delivery_report)
+        self.producer.produce(
+            topic=topic, key=key, value=value, callback=delivery_report
+        )
         self.producer.flush()
         return delivery_reports
