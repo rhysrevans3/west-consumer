@@ -13,8 +13,6 @@ class ConsumerSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         validate_by_name=True,
-        env_file=".env",
-        env_file_encoding="utf-8",
         env_prefix="CONSUMER_",
     )
 

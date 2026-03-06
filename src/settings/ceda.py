@@ -1,15 +1,10 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 
 class CEDAClientSettings(BaseSettings):
     """
     CEDA settings
     """
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-    )
 
     token_url: str
     client_id: str
