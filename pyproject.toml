@@ -11,13 +11,14 @@ package-mode = false
 
 [tool.poetry.dependencies]
 boto3 = "^1.35.49"
+confluent-kafka = "^2.6.0"
 esgf_playground_utils = "1.0.5"
-pydantic-settings = "2.8.1"
+globus-sdk = "^3.46.0"
 httpx = "0.28.1"
 httpx-auth = "0.23.1"
-confluent-kafka = "^2.6.0"
-globus-sdk = "^3.46.0"
 jsonpatch = "^1.33"
+pydantic = "^2.12.5"
+pydantic-settings = "2.8.1"
 python = "^3.10"
 python-dotenv = "^1.0.1"
 

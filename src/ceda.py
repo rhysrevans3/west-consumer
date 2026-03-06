@@ -1,16 +1,24 @@
 import json
 import logging
+from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 import httpx
 from confluent_kafka import Message as KafkaMessage
-from esgf_playground_utils.models.kafka import CreatePayload, KafkaEvent, PatchPayload, RevokePayload, UpdatePayload
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
-from stac_fastapi.extensions.core.transaction.request import PartialItem, PatchOperation
-from stac_pydantic.item import Item
 
-from settings import CEDAClientSettings
+from kafka import (
+    CreatePayload,
+    KafkaErrorEvent,
+    KafkaEvent,
+    PatchPayload,
+    RevokePayload,
+    UpdatePayload,
+)
+from producer import KafkaProducer
+from settings.ceda import ceda_client_settings
+from settings.producer import producer_settings
 
 
 class ConsumerSearchClient:
@@ -18,123 +26,167 @@ class ConsumerSearchClient:
     CEDA Kafka Comsumer Client
     """
 
-    def __init__(self, error_producer):
-        self.settings = CEDAClientSettings()
+    def __init__(self):
         self.auth = OAuth2ClientCredentials(
-            self.settings.token_url,
-            self.settings.client_id,
-            self.settings.client_secret,
+            ceda_client_settings.token_url,
+            ceda_client_settings.client_id,
+            ceda_client_settings.client_secret,
         )
         self.client = httpx.Client(timeout=5.0, verify=False)
-        self.error_producer = error_producer
+        self.producer = KafkaProducer()
 
     def create_item(
         self,
-        collection_id: str,
-        item: Item,
+        event: KafkaEvent,
     ) -> None:
         """Create item
 
         Args:
-            collection_id (str): item's collection ID
-            item (Item): item to be generated
+            event (KafkaEvent): event to be processed
         """
+        try:
+            collection_id = event.data.payload.collection_id
+            item = event.data.payload.item
 
-        url = urljoin(
-            self.settings.stac_server,
-            f"collections/{collection_id}/items",
-        )
-
-        logging.info("Posting %s to %s", item.id, url)
-        response = self.client.post(
-            url,
-            data=item.model_dump_json(),
-            auth=self.auth,
-        )
-
-        if response.is_success:
-            logging.info("Item %s succesfully posted", item.id)
-
-        else:
-            logging.info("Item %s failed to post: %s", item.id, response.content)
-            self.error_producer.produce(
-                topic="esgf-local.errors",
-                key=item.id,
-                value=response.content,
+            url = urljoin(
+                ceda_client_settings.stac_server,
+                f"collections/{collection_id}/items",
             )
 
-    def patch_item(self, collection_id: str, item_id: str, patch: PartialItem | list[PatchOperation]):
+            now = datetime.now(timezone.utc)
+            setattr(item.properties, "created", now)
+            setattr(item.properties, "updated", now)
+
+            response = self.client.post(
+                url,
+                data=item.model_dump_json(exclude_unset=True, exclude_defaults=True),
+                auth=self.auth,
+            )
+
+            response.raise_for_status()
+
+            logging.info("SUCCESS: CREATE Item %s", item.id)
+            self.producer.produce(
+                topic=producer_settings.success_topic,
+                key=item.id,
+                value=event.model_dump_json().encode("utf8"),
+            )
+
+        except httpx.HTTPError as exc:
+            logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
+            if response.json()["code"] == "ItemAlreadyExistsError":
+                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+
+                self.producer.produce(
+                    topic=producer_settings.error_topic,
+                    key=item.id,
+                    value=error_event,
+                )
+
+            raise
+
+    def patch_item(
+        self,
+        event: KafkaEvent,
+    ) -> None:
         """Patch Item
 
         Args:
-            collection_id (str): item's collection ID
-            item_id (str): item's ID
-            patch (PartialItem | list[PatchOperation]): partial item or list of patch operations
+            event (KafkaEvent): event to be processed
         """
-        url = urljoin(
-            self.settings.stac_server,
-            f"collections/{collection_id}/items/{item_id}",
-        )
+        try:
+            collection_id = (event.data.payload.collection_id,)
+            item_id = event.data.payload.item_id
+            patch = event.data.payload.patch
 
-        logging.info("Patching %s to %s", item_id, url)
-        response = self.client.patch(
-            url,
-            json=[op.model_dump() for op in patch] if isinstance(patch, list) else patch.model_dump(),
-            auth=self.auth,
-        )
-
-        if response.is_success:
-            logging.info("Item %s succesfully update", item_id)
-
-        else:
-            logging.info("Item %s failed to update: %s", item_id, response.content)
-            self.error_producer.produce(
-                topic="esgf-local.errors",
-                key=item_id,
-                value=response.content,
+            url = urljoin(
+                ceda_client_settings.stac_server,
+                f"collections/{collection_id}/items/{item_id}",
             )
+
+            logging.info("Patch %s", patch)
+            response = self.client.patch(
+                url,
+                json=patch,
+                # data=[op.model_dump_json() for op in patch] if isinstance(patch, list) else patch.model_dump_json(exclude_unset=True),
+                auth=self.auth,
+                headers={"Content-Type": "application/json-patch+json"},
+            )
+
+            response.raise_for_status()
+
+            logging.info("SUCCESS: PATCH Item %s", item_id)
+            self.producer.produce(
+                topic=producer_settings.success_topic,
+                key=item_id,
+                value=event.model_dump_json().encode("utf8"),
+            )
+
+        except httpx.HTTPError as exc:
+            if response.json()["code"] == "NotFoundError":
+                logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
+
+                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                self.producer.produce(
+                    topic=producer_settings.error_topic,
+                    key=item_id,
+                    value=error_event,
+                )
+
+            else:
+                raise
 
     def update_item(
         self,
-        collection_id: str,
-        item_id: str,
-        item: Item,
+        event: KafkaEvent,
     ) -> None:
         """Update item
 
         Args:
-            collection_id (str): item's collection ID
-            item_id (str): item's ID
-            item (Item): item to be updated
+            event (KafkaEvent): event to be processed
         """
+        try:
+            collection_id = event.data.payload.collection_id
+            item_id = event.data.payload.item_id
+            item = event.data.payload.item
 
-        url = urljoin(
-            self.settings.stac_server,
-            f"collections/{collection_id}/items/{item_id}",
-        )
-
-        logging.info("Updating %s to %s", item_id, url)
-        response = self.client.put(
-            url,
-            json=item.model_dump(),
-            auth=self.auth,
-        )
-
-        if response.is_success:
-            logging.info("Item %s succesfully update", item_id)
-
-        else:
-            logging.info("Item %s failed to update: %s", item_id, response.content)
-            self.error_producer.produce(
-                topic="esgf-local.errors",
-                key=item_id,
-                value=response.content,
+            url = urljoin(
+                ceda_client_settings.stac_server,
+                f"collections/{collection_id}/items/{item_id}",
             )
+
+            response = self.client.put(
+                url,
+                data=item.model_dump_json(exclude_unset=True, exclude_defaults=True),
+                auth=self.auth,
+            )
+
+            response.raise_for_status()
+
+            logging.info("SUCCESS: UPDATE Item %s", item_id)
+            self.producer.produce(
+                topic=producer_settings.success_topic,
+                key=item_id,
+                value=event.model_dump_json().encode("utf8"),
+            )
+
+        except httpx.HTTPError as exc:
+            if response.json()["code"] == "NotFoundError":
+                logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
+
+                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                self.producer.produce(
+                    topic=producer_settings.error_topic,
+                    key=item_id,
+                    value=error_event,
+                )
+
+            else:
+                raise
 
     def delete_item(
         self,
-        collection_id: str,
-        item_id: str,
+        event: KafkaEvent,
     ) -> None:
         """Delete item
 
@@ -142,97 +194,79 @@ class ConsumerSearchClient:
             collection_id (str): item's collection ID
             item_id (str): item's ID
         """
-
-        url = urljoin(
-            self.settings.stac_server,
-            f"collections/{collection_id}/items/{item_id}",
-        )
-
-        logging.info("Deleting %s at %s", item_id, url)
-        response = self.client.delete(url, auth=self.auth)
-
-        if response.is_success:
-            logging.info("Item %s succesfully deleted", item_id)
-
-        else:
-            logging.info("Item %s failed to delete: %s", item_id, response.content)
-            self.error_producer.produce(
-                topic="esgf-local.errors",
-                key=item_id,
-                value=response.content,
+        try:
+            collection_id = event.data.payload.collection_id
+            item_id = event.data.payload.item_id
+            url = urljoin(
+                ceda_client_settings.stac_server,
+                f"collections/{collection_id}/items/{item_id}",
             )
 
-    def ingest(self, message: KafkaMessage) -> bool:
+            response = self.client.delete(url, auth=self.auth)
+
+            response.raise_for_status()
+
+            logging.info("SUCCESS: DELETE Item %s", item_id)
+            self.producer.produce(
+                topic=producer_settings.success_topic,
+                key=item_id,
+                value=event.model_dump_json().encode("utf8"),
+            )
+
+        except httpx.HTTPError as exc:
+            if response.json()["code"] == "NotFoundError":
+                logging.error("FAILED: DELETE Item %s: %s", item_id, response.content)
+
+                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                self.producer.produce(
+                    topic=producer_settings.error_topic,
+                    key=item_id,
+                    value=error_event,
+                )
+
+            else:
+                raise
+
+    def ingest(self, message: KafkaMessage) -> None:
         """Ingest Kafka events
 
         Args:
             events (list[dict[str, Any]]): Events to be ingested
-
-        Returns:
-            bool: true if ingestion successful
         """
-
-        if message.error():
-            logging.error(
-                "Message error at offset %s: %s.",
-                message.offset(),
-                message.error(),
-            )
-            self.error_producer.produce(
-                topic=self.settings.error_topic,
-                key="message_error",
-                value=f"Message error at offset {message.offset()}:{message.error()}",
-            )
-            return False
-
-        data = json.loads(message.value().decode("utf8"))
-
-        logging.error(
-            "Message data %s.",
-            data,
-        )
-
         try:
+            data = json.loads(message.value().decode("utf8"))
             event = KafkaEvent.model_validate(data)
+            setattr(event.metadata, "node", ceda_client_settings.node)
 
         except ValidationError as e:
-            self.error_producer.produce(
-                topic=self.settings.error_topic,
-                key="message_error",
-                value=f"Validation error at offset {message.offset()}:{e}",
+            logging.error(
+                "Validation error at offset %s: %s.",
+                message.offset(),
+                e,
             )
-            return False
+            raise
 
         match event.data.payload:
 
             case CreatePayload():
-                self.create_item(
-                    collection_id=event.data.payload.collection_id,
-                    item=event.data.payload.item,
-                )
-                logging.info("Item %s created.", event.data.payload.item.id)
+                logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
+                self.create_item(event=event)
 
             case UpdatePayload():
-                self.update_item(
-                    collection_id=event.data.payload.collection_id,
-                    item_id=event.data.payload.item_id,
-                    item=event.data.payload.item,
-                )
-                logging.info("Item %s updated.", event.data.payload.item.id)
+                logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
+                self.update_item(event=event)
 
             case PatchPayload():
-                self.patch_item(
-                    collection_id=event.data.payload.collection_id,
-                    item_id=event.data.payload.item_id,
-                    patch=event.data.payload.patch,
-                )
-                logging.info("Item %s patched.", event.data.payload.item_id)
+                logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
+                self.patch_item(event=event)
 
             case RevokePayload(method="DELETE"):
-                self.delete_item(
-                    collection_id=event.data.payload.collection_id,
-                    item_id=event.data.payload.item_id,
-                )
-                logging.info("Item %s deleted.", event.data.payload.item_id)
+                logging.info("ATTEMPT DELETE Item: %s", event.data.payload.item_id)
+                self.delete_item(event=event)
 
-        return True
+            case _:
+                logging.error(
+                    "FAILED: No Payload match found for : %s",
+                    event.data.payload.item_id,
+                )
+                raise Exception(f"No Payload match found for : {event}")

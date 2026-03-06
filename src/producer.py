@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import attr
 from confluent_kafka import Producer
 
+from settings.producer import producer_settings
+
 # Setup logger
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,10 @@ class StdoutProducer(BaseProducer):
 
 
 class KafkaProducer(BaseProducer):
-    def __init__(self, config):
-        self.producer = Producer(config)
+    def __init__(self):
+        self.producer = Producer(
+            producer_settings.config.model_dump(by_alias=True, exclude_none=True)
+        )
         logger.info("KafkaProducer initialized")
 
     def produce(self, topic, key, value):

@@ -1,48 +1,58 @@
-import os
-import socket
+from typing import Self
 
-from dotenv import load_dotenv
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load the .env file
-load_dotenv()
+from settings.kafka import KafkaConsumerConfig
 
-run_environment = os.environ.get("RUN_ENVIRONMENT", "local")
 
-# ESGF2 Event Stream Service Consumer
-if run_environment == "local":
-    event_stream = {
-        "config": {
-            "auto.offset.reset": "earliest",
-            "bootstrap.servers": "host.docker.internal:9092",
-            "client.id": socket.gethostname(),
-            "enable.auto.commit": False,
-            "group.id": "westconsumer",
-        },
-        "topics": ["esgf-local.transactions"],
-    }
-else:
-    event_stream = {
-        "config": {
-            "auto.offset.reset": "earliest",
-            "bootstrap.servers": os.environ.get("BOOTSTRAP_SERVERS"),
-            "enable.auto.commit": False,
-            "group.id": "westconsumer",
-            "sasl.mechanism": "PLAIN",
-            "sasl.username": os.environ.get("CONFLUENT_CLOUD_USERNAME"),
-            "sasl.password": os.environ.get("CONFLUENT_CLOUD_PASSWORD"),
-            "security.protocol": "SASL_SSL",
-        },
-        "topics": [os.environ.get("TOPICS")],
-    }
+class ConsumerSettings(BaseSettings):
+    """
+    Event Stream Settings
+    """
 
-if os.environ.get("KAFKA_CLIENT_DEBUG", False):
-    event_stream["config"]["debug"] = "all"
-    event_stream["config"]["log_level"] = 7
+    model_config = SettingsConfigDict(
+        validate_by_name=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="CONSUMER_",
+    )
 
-globus_search_client_credentials = {
-    "client_id": os.environ.get("CLIENT_ID"),
-    "client_secret": os.environ.get("CLIENT_SECRET"),
-}
+    node: str = "ceda"
+    config: KafkaConsumerConfig
+    topics: list[str]
+    timeout: float = 5.0
+    slack_hook: str | None = None
 
-# ESGF2 Globus Search
-globus_search = {"index": os.environ.get("GLOBUS_SEARCH_INDEX")}
+    debug: bool = False
+
+    @model_validator(mode="after")
+    def check_debug(self) -> Self:
+        """
+        Check if debug is set if so update kafka config.
+        """
+        if self.debug:
+            if self.config.debug is None:
+                setattr(self.config, "debug", "all")
+
+            if self.config.level is None:
+                setattr(self.config, "level", 7)
+
+        return self
+
+    @field_validator("topics", mode="before")
+    @classmethod
+    def split_topics(cls, v):
+        """
+        Accept comma-separated string or list.
+        """
+        if isinstance(v, str):
+            return [t.strip() for t in v.split(",") if t.strip()]
+
+        if isinstance(v, (list, tuple)):
+            return list(v)
+
+        raise TypeError("topics must be a string or list")
+
+
+consumer_settings = ConsumerSettings()

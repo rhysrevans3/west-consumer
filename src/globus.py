@@ -10,22 +10,23 @@ from globus_sdk import (
 from globus_sdk.scopes import SearchScopes
 from globus_sdk.services.search.errors import SearchAPIError
 
-from settings import globus_search, globus_search_client_credentials
+from producer import KafkaProducer
+from settings.globus import globus_client_settings
 
 
 class ConsumerSearchClient:
-    def __init__(self, credentials, search_index, error_producer):
+    def __init__(self):
         confidential_client = ConfidentialAppAuthClient(
-            client_id=globus_search_client_credentials.get("client_id"),
-            client_secret=globus_search_client_credentials.get("client_secret"),
+            client_id=globus_client_settings.client_id,
+            client_secret=globus_client_settings.client_secret,
         )
         authorizer = ClientCredentialsAuthorizer(
             confidential_client,
             scopes=SearchScopes.all,
         )
         self.search_client = SearchClient(authorizer=authorizer)
-        self.esgf_index = search_index
-        self.error_producer = error_producer
+        self.esgf_index = globus_client_settings.search_index
+        self.error_producer = KafkaProducer()
 
     def normalize_assets(self, assets):
         normalized_assets = []
@@ -123,9 +124,7 @@ class ConsumerSearchClient:
             return None
         item = globus_response.data.get("entries")[0].get("content")
         item["assets"] = self.denormalize_assets(item.get("assets"))
-        patched_item = jsonpatch.apply_patch(
-            item, payload.get("patch").get("operations")
-        )
+        patched_item = jsonpatch.apply_patch(item, payload.get("patch"))
         patched_item["assets"] = self.normalize_assets(patched_item.get("assets"))
         gmeta_entry = self.gmetaentry(patched_item)
         return gmeta_entry
