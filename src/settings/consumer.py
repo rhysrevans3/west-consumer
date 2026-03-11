@@ -1,7 +1,7 @@
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from settings.kafka import KafkaConsumerConfig
 
@@ -17,8 +17,8 @@ class ConsumerSettings(BaseSettings):
     )
 
     node: str = "ceda"
-    config: KafkaConsumerConfig
-    topics: list[str]
+    kafka_config: KafkaConsumerConfig
+    topics: Annotated[list[str], NoDecode]
     timeout: float = 5.0
     slack_hook: str | None = None
 
@@ -30,11 +30,11 @@ class ConsumerSettings(BaseSettings):
         Check if debug is set if so update kafka config.
         """
         if self.debug:
-            if self.config.debug is None:
-                setattr(self.config, "debug", "all")
+            if self.kafka_config.debug is None:
+                setattr(self.kafka_config, "debug", "all")
 
-            if self.config.level is None:
-                setattr(self.config, "level", 7)
+            if self.kafka_config.level is None:
+                setattr(self.kafka_config, "level", 7)
 
         return self
 

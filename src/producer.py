@@ -25,7 +25,7 @@ class StdoutProducer(BaseProducer):
 class KafkaProducer(BaseProducer):
     def __init__(self):
         self.producer = Producer(
-            producer_settings.config.model_dump(by_alias=True, exclude_none=True)
+            producer_settings.kafka_config.model_dump(by_alias=True, exclude_none=True)
         )
         logger.info("KafkaProducer initialized")
 

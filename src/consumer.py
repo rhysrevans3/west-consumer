@@ -16,7 +16,7 @@ class KafkaConsumerService:
     def __init__(self):
         self.message_processor = ConsumerSearchClient()
         self.consumer = Consumer(
-            consumer_settings.config.model_dump(by_alias=True, exclude_none=True)
+            consumer_settings.kafka_config.model_dump(by_alias=True, exclude_none=True)
         )
 
     def commit(self, message):
