@@ -1,7 +1,7 @@
 from typing import Annotated, Self
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode
 
 from settings.kafka import KafkaConsumerConfig
 
@@ -11,10 +11,10 @@ class ConsumerSettings(BaseSettings):
     Event Stream Settings
     """
 
-    model_config = SettingsConfigDict(
-        validate_by_name=True,
-        env_prefix="CONSUMER_",
-    )
+    class Config:
+        validate_by_name = True
+        env_prefix = "CONSUMER_"
+        extra = "ignore"
 
     node: str = "ceda"
     kafka_config: KafkaConsumerConfig
@@ -40,7 +40,7 @@ class ConsumerSettings(BaseSettings):
 
     @field_validator("topics", mode="before")
     @classmethod
-    def split_topics(cls, v):
+    def split_topics(cls, v) -> list[str]:
         """
         Accept comma-separated string or list.
         """
