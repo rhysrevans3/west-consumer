@@ -2,6 +2,7 @@ import logging
 import time
 
 import jsonpatch
+from esgf_core_utils.models.kafka.producer import KafkaProducer
 from globus_sdk import (
     ClientCredentialsAuthorizer,
     ConfidentialAppAuthClient,
@@ -10,22 +11,21 @@ from globus_sdk import (
 from globus_sdk.scopes import SearchScopes
 from globus_sdk.services.search.errors import SearchAPIError
 
-from producer import KafkaProducer
-from settings.globus import globus_client_settings
+from settings import settings
 
 
 class ConsumerSearchClient:
     def __init__(self):
         confidential_client = ConfidentialAppAuthClient(
-            client_id=globus_client_settings.client_id,
-            client_secret=globus_client_settings.client_secret,
+            client_id=settings.client.client_id,
+            client_secret=settings.client.client_secret,
         )
         authorizer = ClientCredentialsAuthorizer(
             confidential_client,
             scopes=SearchScopes.all,
         )
         self.search_client = SearchClient(authorizer=authorizer)
-        self.esgf_index = globus_client_settings.search_index
+        self.esgf_index = settings.client.search_index
         self.error_producer = KafkaProducer()
 
     def normalize_assets(self, assets):

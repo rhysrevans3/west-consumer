@@ -1,6 +1,14 @@
 import logging
 
-from consumer import KafkaConsumerService
+from esgf_core_utils.models.kafka.consumer import KafkaConsumer
+
+from src.settings import settings
+
+if settings.node == "ceda":
+    from ceda import ConsumerSearchClient
+else:
+    from globus import ConsumerSearchClient
+
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -9,6 +17,6 @@ logging.basicConfig(
 
 if __name__ == "__main__":
 
-    consumer_service = KafkaConsumerService()
+    consumer = KafkaConsumer(message_processor=ConsumerSearchClient())
 
-    consumer_service.start()
+    consumer.start()
