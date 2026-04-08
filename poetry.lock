@@ -621,15 +621,15 @@ test = ["certifi (>=2024)", "cryptography-vectors (==46.0.5)", "pretend (>=0.7)"
 test-randomorder = ["pytest-randomly"]
 
 [[package]]
-name = "esgf-playground-utils"
-version = "1.0.5"
-description = "Common library and models for the ESGF-Playground"
+name = "esgf-core-utils"
+version = "1.0.6"
+description = "Common library and models for the ESGF core architecture"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "esgf_playground_utils-1.0.5-py3-none-any.whl", hash = "sha256:8951df898e4a107791cd27d50115935b2de4d0e826822cdf31637b96f02d9778"},
-    {file = "esgf_playground_utils-1.0.5.tar.gz", hash = "sha256:c0e5671d4a7f055b6e194e81fe09fbc9695047a8f9bef1d17462f3521de68f93"},
+    {file = "esgf_core_utils-1.0.6-py3-none-any.whl", hash = "sha256:957f42c205bb2c79e8f9745e8f82e8c16a511a317789faa297bb26f0e3961693"},
+    {file = "esgf_core_utils-1.0.6.tar.gz", hash = "sha256:0808c33f118b50abf0252fbce167fff2c00f42605ff32318ed95fd5900fd3049"},
 ]
 
 [package.dependencies]
@@ -1414,4 +1414,4 @@ zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "10f67490f3619256e573b0d1305d74ca7c2351983e09555fc5460b3f92f4253b"
+content-hash = "8b14631c279f3be968d9f9291e92dd76d9e489620d4af4348ab04cc9cd205df8"
