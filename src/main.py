@@ -3,7 +3,7 @@ import os
 
 from esgf_core_utils.models.kafka.consumer import KafkaConsumer
 
-if os.environ.get("NODE") == "ceda":
+if os.getenv("NODE", "globus") == "ceda":
     from ceda import ConsumerSearchClient
 else:
     from globus import ConsumerSearchClient
