@@ -1,10 +1,9 @@
 import logging
+import os
 
 from esgf_core_utils.models.kafka.consumer import KafkaConsumer
 
-from src.settings import settings
-
-if settings.node == "ceda":
+if os.environ.get("NODE") == "ceda":
     from ceda import ConsumerSearchClient
 else:
     from globus import ConsumerSearchClient

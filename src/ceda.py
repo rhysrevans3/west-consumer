@@ -16,7 +16,7 @@ from esgf_core_utils.models.kafka.producer import KafkaProducer
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
 
-from settings import settings
+from settings.ceda import CEDAClientSettings
 
 
 class ConsumerSearchClient:
@@ -25,10 +25,11 @@ class ConsumerSearchClient:
     """
 
     def __init__(self):
+        self.settings = CEDAClientSettings()
         self.auth = OAuth2ClientCredentials(
-            settings.client.token_url,
-            settings.client.client_id,
-            settings.client.client_secret,
+            self.settings.token_url,
+            self.settings.client_id,
+            self.settings.client_secret,
         )
         self.client = httpx.Client(timeout=5.0, verify=False)
         self.producer = KafkaProducer()
@@ -47,7 +48,7 @@ class ConsumerSearchClient:
             item = event.data.payload.item
 
             url = urljoin(
-                settings.client.stac_server,
+                self.settings.stac_server,
                 f"collections/{collection_id}/items",
             )
 
@@ -65,7 +66,7 @@ class ConsumerSearchClient:
 
             logging.info("SUCCESS: CREATE Item %s", item.id)
             self.producer.produce(
-                topic=settings.success_topic,
+                topic=self.settings.success_topic,
                 key=item.id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -76,7 +77,7 @@ class ConsumerSearchClient:
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
 
                 self.producer.produce(
-                    topic=settings.error_topic,
+                    topic=self.settings.error_topic,
                     key=item.id,
                     value=error_event,
                 )
@@ -98,7 +99,7 @@ class ConsumerSearchClient:
             patch = event.data.payload.patch
 
             url = urljoin(
-                settings.client.stac_server,
+                self.settings.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -115,7 +116,7 @@ class ConsumerSearchClient:
 
             logging.info("SUCCESS: PATCH Item %s", item_id)
             self.producer.produce(
-                topic=settings.success_topic,
+                topic=self.settings.success_topic,
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -126,7 +127,7 @@ class ConsumerSearchClient:
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
                 self.producer.produce(
-                    topic=settings.error_topic,
+                    topic=self.settings.error_topic,
                     key=item_id,
                     value=error_event,
                 )
@@ -149,7 +150,7 @@ class ConsumerSearchClient:
             item = event.data.payload.item
 
             url = urljoin(
-                settings.client.stac_server,
+                self.settings.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -163,7 +164,7 @@ class ConsumerSearchClient:
 
             logging.info("SUCCESS: UPDATE Item %s", item_id)
             self.producer.produce(
-                topic=settings.success_topic,
+                topic=self.settings.success_topic,
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -174,7 +175,7 @@ class ConsumerSearchClient:
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
                 self.producer.produce(
-                    topic=settings.error_topic,
+                    topic=self.settings.error_topic,
                     key=item_id,
                     value=error_event,
                 )
@@ -196,7 +197,7 @@ class ConsumerSearchClient:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
             url = urljoin(
-                settings.client.stac_server,
+                self.settings.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -206,7 +207,7 @@ class ConsumerSearchClient:
 
             logging.info("SUCCESS: DELETE Item %s", item_id)
             self.producer.produce(
-                topic=settings.success_topic,
+                topic=self.settings.success_topic,
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -217,7 +218,7 @@ class ConsumerSearchClient:
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
                 self.producer.produce(
-                    topic=settings.error_topic,
+                    topic=self.settings.error_topic,
                     key=item_id,
                     value=error_event,
                 )
@@ -225,62 +226,107 @@ class ConsumerSearchClient:
             else:
                 raise
 
+    def load_event(self, message: KafkaMessage) -> KafkaEvent:
+        """Load event from message
+
+        Args:
+            message (KafkaMessage): message from kafka stream
+
+        Returns:
+            KafkaEvent: STAC event
+        """
+        try:
+            data = json.loads(message.value().decode("utf8"))
+            event = KafkaEvent.model_validate(data)
+            setattr(event.metadata, "node", self.settings.node)
+
+            return event
+
+        except ValidationError as e:
+            logging.error(
+                "Validation error at offset %s: %s.",
+                message.offset(),
+                e,
+            )
+            raise
+
+    def handle_event(self, event: KafkaEvent):
+        """Handle STAC event
+
+        Args:
+            event (KafkaEvent): STAC event
+
+        Raises:
+            Exception: Failed to match case
+        """
+        match event.data.payload:
+
+            case CreatePayload():
+                logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
+                self.create_item(event=event)
+
+            case UpdatePayload():
+                logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
+                self.update_item(event=event)
+
+            case PatchPayload():
+                logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
+                self.patch_item(event=event)
+
+            case _:
+                logging.error(
+                    "FAILED: No Payload match found for : %s",
+                    event.data.payload.item_id,
+                )
+                raise Exception(f"No Payload match found for : {event}")
+
+    def post_to_slack(self, message: KafkaMessage, error: Exception) -> None:
+        """Post kafka message and error to Slack
+
+        Args:
+            message (KafkaMessage): kafka message that failed
+            error (Exception): error message to post
+        """
+        try:
+            logging.error("Failed to process event: %s", message)
+
+            if self.settings.slack_hook:
+                payload = {
+                    "kafka_message": message,
+                    "error": error,
+                }
+
+                httpx.post(
+                    self.settings.slack_hook,
+                    headers={"Content-Type": "application/json"},
+                    json={"text": json.dumps(payload)},
+                )
+
+        except Exception as e:
+            logging.error("Failed posting to Slack: %s", e)
+
     def ingest(self, message: KafkaMessage) -> None:
         """Ingest Kafka events
 
         Args:
             events (list[dict[str, Any]]): Events to be ingested
         """
+
+        if message.error():
+            logging.error(
+                "Message error at offset %s: %s.",
+                message.offset(),
+                message.error(),
+            )
+            logging.error(
+                "Message data %s.",
+                message,
+            )
+
         try:
-            try:
-                data = json.loads(message.value().decode("utf8"))
-                event = KafkaEvent.model_validate(data)
-                setattr(event.metadata, "node", settings.client.node)
+            event = self.load_event(message=message)
 
-            except ValidationError as e:
-                logging.error(
-                    "Validation error at offset %s: %s.",
-                    message.offset(),
-                    e,
-                )
-                raise
-
-            match event.data.payload:
-
-                case CreatePayload():
-                    logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
-                    self.create_item(event=event)
-
-                case UpdatePayload():
-                    logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
-                    self.update_item(event=event)
-
-                case PatchPayload():
-                    logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
-                    self.patch_item(event=event)
-
-                case _:
-                    logging.error(
-                        "FAILED: No Payload match found for : %s",
-                        event.data.payload.item_id,
-                    )
-                    raise Exception(f"No Payload match found for : {event}")
+            self.handle_event(event=event)
 
         except Exception as exc:
-            try:
-                logging.error("Failed to process event: %s", event)
-
-                if settings.slack_hook:
-                    payload = {
-                        "kafka_message": message,
-                        "error": exc,
-                    }
-
-                    httpx.post(
-                        settings.slack_hook,
-                        headers={"Content-Type": "application/json"},
-                        json={"text": json.dumps(payload)},
-                    )
-
-            except Exception as e:
-                logging.error("Failed posting to Slack: %s", e)
+            self.post_to_slack(message=message, error=exc)

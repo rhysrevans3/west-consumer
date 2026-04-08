@@ -6,6 +6,8 @@ class GlobusClientSettings(BaseSettings):
     Globus settings
     """
 
+    node: str
+
     client_id: str
     client_secret: str
     search_index: str
