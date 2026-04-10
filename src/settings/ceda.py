@@ -8,7 +8,7 @@ class CEDAClientSettings(BaseSettings):
 
     node: str
 
-    slack_hook: str | None
+    slack_hook: str | None = None
     client_id: str
     client_secret: str
     stac_server: str
