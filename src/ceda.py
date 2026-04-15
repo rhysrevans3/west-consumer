@@ -16,7 +16,7 @@ from esgf_core_utils.models.kafka.producer import KafkaProducer
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
 
-from settings.ceda import CEDAClientSettings
+from src.settings import settings
 
 
 class ConsumerSearchClient:
@@ -25,11 +25,10 @@ class ConsumerSearchClient:
     """
 
     def __init__(self):
-        self.settings = CEDAClientSettings()
         self.auth = OAuth2ClientCredentials(
-            self.settings.token_url,
-            self.settings.client_id,
-            self.settings.client_secret,
+            settings.client.token_url,
+            settings.client.client_id,
+            settings.client.client_secret,
         )
         self.client = httpx.Client(timeout=5.0, verify=False)
         self.producer = KafkaProducer()
@@ -48,7 +47,7 @@ class ConsumerSearchClient:
             item = event.data.payload.item
 
             url = urljoin(
-                self.settings.stac_server,
+                settings.client.stac_server,
                 f"collections/{collection_id}/items",
             )
 
@@ -65,8 +64,7 @@ class ConsumerSearchClient:
             response.raise_for_status()
 
             logging.info("SUCCESS: CREATE Item %s", item.id)
-            self.producer.produce(
-                topic=self.settings.success_topic,
+            self.producer.success(
                 key=item.id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -76,8 +74,7 @@ class ConsumerSearchClient:
             if response.json()["code"] == "ItemAlreadyExistsError":
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
 
-                self.producer.produce(
-                    topic=self.settings.error_topic,
+                self.producer.error(
                     key=item.id,
                     value=error_event,
                 )
@@ -99,7 +96,7 @@ class ConsumerSearchClient:
             patch = event.data.payload.patch
 
             url = urljoin(
-                self.settings.stac_server,
+                settings.client.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -115,8 +112,7 @@ class ConsumerSearchClient:
             response.raise_for_status()
 
             logging.info("SUCCESS: PATCH Item %s", item_id)
-            self.producer.produce(
-                topic=self.settings.success_topic,
+            self.producer.success(
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -126,8 +122,7 @@ class ConsumerSearchClient:
                 logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
-                self.producer.produce(
-                    topic=self.settings.error_topic,
+                self.producer.error(
                     key=item_id,
                     value=error_event,
                 )
@@ -150,7 +145,7 @@ class ConsumerSearchClient:
             item = event.data.payload.item
 
             url = urljoin(
-                self.settings.stac_server,
+                settings.client.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -163,8 +158,7 @@ class ConsumerSearchClient:
             response.raise_for_status()
 
             logging.info("SUCCESS: UPDATE Item %s", item_id)
-            self.producer.produce(
-                topic=self.settings.success_topic,
+            self.producer.success(
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -174,8 +168,7 @@ class ConsumerSearchClient:
                 logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
-                self.producer.produce(
-                    topic=self.settings.error_topic,
+                self.producer.error(
                     key=item_id,
                     value=error_event,
                 )
@@ -197,7 +190,7 @@ class ConsumerSearchClient:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
             url = urljoin(
-                self.settings.stac_server,
+                settings.client.stac_server,
                 f"collections/{collection_id}/items/{item_id}",
             )
 
@@ -206,8 +199,7 @@ class ConsumerSearchClient:
             response.raise_for_status()
 
             logging.info("SUCCESS: DELETE Item %s", item_id)
-            self.producer.produce(
-                topic=self.settings.success_topic,
+            self.producer.success(
                 key=item_id,
                 value=event.model_dump_json().encode("utf8"),
             )
@@ -217,8 +209,7 @@ class ConsumerSearchClient:
                 logging.error("FAILED: DELETE Item %s: %s", item_id, response.content)
 
                 error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
-                self.producer.produce(
-                    topic=self.settings.error_topic,
+                self.producer.error(
                     key=item_id,
                     value=error_event,
                 )
@@ -238,7 +229,7 @@ class ConsumerSearchClient:
         try:
             data = json.loads(message.value().decode("utf8"))
             event = KafkaEvent.model_validate(data)
-            setattr(event.metadata, "node", self.settings.node)
+            setattr(event.metadata, "node", settings.node)
 
             return event
 
@@ -290,14 +281,14 @@ class ConsumerSearchClient:
         try:
             logging.error("Failed to process event: %s", message)
 
-            if self.settings.slack_hook:
+            if settings.client.slack_hook:
                 payload = {
                     "kafka_message": message,
                     "error": error,
                 }
 
                 httpx.post(
-                    self.settings.slack_hook,
+                    settings.client.slack_hook,
                     headers={"Content-Type": "application/json"},
                     json={"text": json.dumps(payload)},
                 )

@@ -1,15 +1,18 @@
-from pydantic_settings import BaseSettings
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class CEDAClientSettings(BaseSettings):
+class CEDAClientSettings(BaseModel):
     """
     CEDA settings
     """
 
-    node: str
-
-    slack_hook: str | None = None
+    client_type: Literal["ceda"]
     client_id: str
     client_secret: str
-    stac_server: str
     token_url: str
+
+    stac_server: str
+
+    slack_hook: str | None = None

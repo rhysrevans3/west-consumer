@@ -1,14 +1,16 @@
-from pydantic_settings import BaseSettings
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class GlobusClientSettings(BaseSettings):
+class GlobusClientSettings(BaseModel):
     """
     Globus settings
     """
 
-    node: str
-
+    client_type: Literal["globus"]
     client_id: str
     client_secret: str
     search_index: str
+
     stac_server: str
