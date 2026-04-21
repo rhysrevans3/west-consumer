@@ -12,7 +12,7 @@ from globus_sdk import (
 from globus_sdk.scopes import SearchScopes
 from globus_sdk.services.search.errors import SearchAPIError
 
-from src.settings import settings
+from settings import settings
 
 
 class GlobusMessageProcessor(MessageProcessor):
