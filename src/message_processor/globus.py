@@ -2,6 +2,7 @@ import logging
 import time
 
 import jsonpatch
+from esgf_core_utils.models.kafka.message_processor import MessageProcessor
 from esgf_core_utils.models.kafka.producer import KafkaProducer
 from globus_sdk import (
     ClientCredentialsAuthorizer,
@@ -11,10 +12,10 @@ from globus_sdk import (
 from globus_sdk.scopes import SearchScopes
 from globus_sdk.services.search.errors import SearchAPIError
 
-from settings import settings
+from src.settings import settings
 
 
-class ConsumerSearchClient:
+class GlobusMessageProcessor(MessageProcessor):
     def __init__(self):
         confidential_client = ConfidentialAppAuthClient(
             client_id=settings.client.client_id,
@@ -184,7 +185,7 @@ class ConsumerSearchClient:
             if state == "SUCCESS":
                 return True
             if state == "FAILED":
-                logging.error(f"Ingestion task {task_id} failed")
+                logging.error("Ingestion task %s failed", task_id)
                 logging.error(r.text)
                 return False
             time.sleep(1)

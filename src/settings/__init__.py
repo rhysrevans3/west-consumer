@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    node: Literal["ceda", "globus"] = "globus"
+    node: Literal["ceda", "globus"]
     client: CEDAClientSettings | GlobusClientSettings = Field(
         discriminator="client_type"
     )

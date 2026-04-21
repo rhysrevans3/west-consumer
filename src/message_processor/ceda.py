@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 import httpx
+from confluent_kafka import KafkaException
 from confluent_kafka import Message as KafkaMessage
 from esgf_core_utils.models.kafka.events import (
     CreatePayload,
@@ -12,6 +13,7 @@ from esgf_core_utils.models.kafka.events import (
     PatchPayload,
     UpdatePayload,
 )
+from esgf_core_utils.models.kafka.message_processor import MessageProcessor
 from esgf_core_utils.models.kafka.producer import KafkaProducer
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
@@ -19,9 +21,9 @@ from pydantic_core import ValidationError
 from src.settings import settings
 
 
-class ConsumerSearchClient:
+class CEDAMessageProcessor(MessageProcessor):
     """
-    CEDA Kafka Comsumer Client
+    CEDA Message Processor
     """
 
     def __init__(self):
@@ -303,21 +305,23 @@ class ConsumerSearchClient:
             events (list[dict[str, Any]]): Events to be ingested
         """
 
-        if message.error():
-            logging.error(
-                "Message error at offset %s: %s.",
-                message.offset(),
-                message.error(),
-            )
-            logging.error(
-                "Message data %s.",
-                message,
-            )
-
         try:
+            if message.error():
+                logging.error(
+                    "Message error at offset %s: %s.",
+                    message.offset(),
+                    message.error(),
+                )
+                logging.error(
+                    "Message data %s.",
+                    message,
+                )
+                raise KafkaException(message.error())
+
             event = self.load_event(message=message)
 
             self.handle_event(event=event)
 
         except Exception as exc:
             self.post_to_slack(message=message, error=exc)
+            raise exc
