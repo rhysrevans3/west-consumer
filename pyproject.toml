@@ -25,4 +25,12 @@ globus = [
     "jsonpatch>=1.33",
 ]
 
+[tool.poetry]
+packages = [
+    { include = "src" }
+]
+package-mode = false
 
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
