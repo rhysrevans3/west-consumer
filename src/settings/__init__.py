@@ -3,8 +3,8 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.settings.ceda import CEDAClientSettings
-from src.settings.globus import GlobusClientSettings
+from settings.ceda import CEDAClientSettings
+from settings.globus import GlobusClientSettings
 
 
 class Settings(BaseSettings):
