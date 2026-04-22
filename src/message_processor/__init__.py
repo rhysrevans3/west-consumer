@@ -1,7 +1,8 @@
-from message_processor.ceda import CEDAMessageProcessor
-from message_processor.globus import GlobusMessageProcessor
 from settings import settings
 
-message_processor = (
-    CEDAMessageProcessor() if settings.node == "ceda" else GlobusMessageProcessor()
-)
+if settings.node == "ceda":
+    from message_processor.ceda import CEDAMessageProcessor as mp
+else:
+    from message_processor.globus import GlobusMessageProcessor as mp
+
+message_processor = mp()

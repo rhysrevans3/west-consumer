@@ -73,15 +73,29 @@ class CEDAMessageProcessor(MessageProcessor):
 
         except httpx.HTTPError as exc:
             logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
-            if response.json()["code"] == "ItemAlreadyExistsError":
-                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+            if (
+                "code" in response.json()
+                and response.json()["code"] == "ItemAlreadyExistsError"
+            ):
+                error_event = KafkaErrorEvent(
+                    error={
+                        "detail": exc.response.content,
+                        "instance": event.metadata.event_id,
+                        "status": exc.response.status_code,
+                        "title": f"{item.id} already exists",
+                        "type": "ItemAlreadyExists",
+                    },
+                    data=event.data,
+                    metadata=event.metadata,
+                    event=event,
+                )
 
                 self.producer.error(
                     key=item.id,
-                    value=error_event,
+                    value=error_event.model_dump_json().encode("utf-8"),
                 )
-
-            raise
+            else:
+                raise
 
     def patch_item(
         self,
@@ -103,12 +117,23 @@ class CEDAMessageProcessor(MessageProcessor):
             )
 
             logging.info("Patch %s", patch)
+            content_type = (
+                "application/json-patch+json"
+                if isinstance(patch, list)
+                else "application/merge-patch+json"
+            )
+
+            data = (
+                [op.model_dump() for op in patch]
+                if isinstance(patch, list)
+                else patch.model_dump(exclude_unset=True, exclude_defaults=True)
+            )
+
             response = self.client.patch(
                 url,
-                json=patch,
-                # data=[op.model_dump_json() for op in patch] if isinstance(patch, list) else patch.model_dump_json(exclude_unset=True),
+                json=data,
                 auth=self.auth,
-                headers={"Content-Type": "application/json-patch+json"},
+                headers={"Content-Type": content_type},
             )
 
             response.raise_for_status()
@@ -123,10 +148,21 @@ class CEDAMessageProcessor(MessageProcessor):
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
 
-                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                error_event = KafkaErrorEvent(
+                    error={
+                        "detail": exc.response.content,
+                        "instance": event.metadata.event_id,
+                        "status": exc.response.status_code,
+                        "title": f"{item_id} already exists",
+                        "type": "ItemAlreadyExists",
+                    },
+                    data=event.data,
+                    metadata=event.metadata,
+                    event=event,
+                )
                 self.producer.error(
                     key=item_id,
-                    value=error_event,
+                    value=error_event.model_dump_json().encode("utf-8"),
                 )
 
             else:
@@ -169,10 +205,21 @@ class CEDAMessageProcessor(MessageProcessor):
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
 
-                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                error_event = KafkaErrorEvent(
+                    error={
+                        "detail": exc.response.content,
+                        "instance": event.metadata.event_id,
+                        "status": exc.response.status_code,
+                        "title": f"{item_id} already exists",
+                        "type": "ItemAlreadyExists",
+                    },
+                    data=event.data,
+                    metadata=event.metadata,
+                    event=event,
+                )
                 self.producer.error(
                     key=item_id,
-                    value=error_event,
+                    value=error_event.model_dump_json().encode("utf-8"),
                 )
 
             else:
@@ -210,10 +257,21 @@ class CEDAMessageProcessor(MessageProcessor):
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAILED: DELETE Item %s: %s", item_id, response.content)
 
-                error_event = KafkaErrorEvent(Error={"traceback": exc}, event=event)
+                error_event = KafkaErrorEvent(
+                    error={
+                        "detail": exc.response.content,
+                        "instance": event.metadata.event_id,
+                        "status": exc.response.status_code,
+                        "title": f"{item_id} already exists",
+                        "type": "ItemAlreadyExists",
+                    },
+                    data=event.data,
+                    metadata=event.metadata,
+                    event=event,
+                )
                 self.producer.error(
                     key=item_id,
-                    value=error_event,
+                    value=error_event.model_dump_json().encode("utf-8"),
                 )
 
             else:
@@ -231,7 +289,6 @@ class CEDAMessageProcessor(MessageProcessor):
         try:
             data = json.loads(message.value().decode("utf8"))
             event = KafkaEvent.model_validate(data)
-            setattr(event.metadata, "node", settings.node)
 
             return event
 
@@ -281,11 +338,9 @@ class CEDAMessageProcessor(MessageProcessor):
             error (Exception): error message to post
         """
         try:
-            logging.error("Failed to process event: %s", message)
-
             if settings.client.slack_hook:
                 payload = {
-                    "kafka_message": message,
+                    "kafka_message": message.value(),
                     "error": error,
                 }
 
@@ -314,7 +369,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 logging.error(
                     "Message data %s.",
-                    message,
+                    message.value(),
                 )
                 raise KafkaException(message.error())
 
@@ -323,5 +378,7 @@ class CEDAMessageProcessor(MessageProcessor):
             self.handle_event(event=event)
 
         except Exception as exc:
+            logging.error("Failed to process event: %s", message.value())
+
             self.post_to_slack(message=message, error=exc)
             raise exc
