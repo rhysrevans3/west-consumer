@@ -9,8 +9,12 @@ logging.basicConfig(
 )
 
 
-if __name__ == "__main__":
-
+def run():
+    """run consumer"""
     consumer = KafkaConsumer(message_processor=message_processor)
 
     consumer.start()
+
+
+if __name__ == "__main__":
+    run()
