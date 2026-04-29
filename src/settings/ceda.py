@@ -8,7 +8,6 @@ class CEDAClientSettings(BaseModel):
     CEDA settings
     """
 
-    client_type: Literal["ceda"]
     client_id: str
     client_secret: str
     token_url: str

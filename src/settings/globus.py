@@ -8,7 +8,6 @@ class GlobusClientSettings(BaseModel):
     Globus settings
     """
 
-    client_type: Literal["globus"]
     client_id: str
     client_secret: str
     search_index: str

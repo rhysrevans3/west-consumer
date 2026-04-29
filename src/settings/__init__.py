@@ -1,10 +1,13 @@
-from typing import Any, Literal
+import os
+from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from settings.ceda import CEDAClientSettings
-from settings.globus import GlobusClientSettings
+if os.environ.get("CONSUMER_NODE") == "ceda":
+    from settings.ceda import CEDAClientSettings as ClientSettings
+else:
+    from settings.globus import GlobusClientSettings as ClientSettings
 
 
 class Settings(BaseSettings):
@@ -19,25 +22,9 @@ class Settings(BaseSettings):
     )
 
     node: Literal["ceda", "globus"]
-    client: CEDAClientSettings | GlobusClientSettings = Field(
-        discriminator="client_type"
-    )
+    client: ClientSettings = Field(discriminator="client_type")
 
     debug: bool = False
-
-    @model_validator(mode="before")
-    @classmethod
-    def set_client_type(cls, data: Any) -> Any:
-        """set authorizer as client type.
-
-        Args:
-            data (Any): model data
-
-        Returns:
-            Any: data with updated client type
-        """
-        data["client"]["client_type"] = data["node"]
-        return data
 
 
 settings = Settings()
