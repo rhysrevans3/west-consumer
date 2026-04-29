@@ -350,8 +350,8 @@ class CEDAMessageProcessor(MessageProcessor):
                     json={"text": json.dumps(payload)},
                 )
 
-        except Exception as e:
-            logging.error("Failed posting to Slack: %s", e)
+        except httpx.HTTPError as exc:
+            logging.error("Failed posting to Slack: %s", exc)
 
     def ingest(self, message: KafkaMessage) -> None:
         """Ingest Kafka events

@@ -6,12 +6,9 @@ authors = [
     {name = "lukaszlacinski", email = "lukasz@uchicago.edu"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<4.0"
 dependencies = [
-    "confluent-kafka>=2.6.0",
-    # "esgf-core-utils>=1.0.6",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.8.1",
+    "esgf-core-utils>=1.0.7",
 ]
 
 [project.optional-dependencies]
