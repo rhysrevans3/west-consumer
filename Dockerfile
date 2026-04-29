@@ -12,8 +12,15 @@ RUN git clone https://github.com/confluentinc/librdkafka  && \
     ./configure --install-deps && make && make install && \
     ldconfig
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Install poetry
+RUN pip install poetry
+
+WORKDIR $PYSETUP_PATH
+
+ENV PATH="$POETRY_HOME/bin:$PATH"
+
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --extras globus
 
 COPY ./src .
 
