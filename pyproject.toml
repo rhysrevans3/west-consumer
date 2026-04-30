@@ -26,7 +26,7 @@ globus = [
 packages = [
     { include = "src" }
 ]
-package-mode = false
+package-mode = true
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
