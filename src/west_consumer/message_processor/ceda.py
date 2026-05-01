@@ -18,7 +18,7 @@ from esgf_core_utils.models.kafka.producer import KafkaProducer
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
 
-from settings import settings
+from west_consumer.settings import settings
 
 
 class CEDAMessageProcessor(MessageProcessor):

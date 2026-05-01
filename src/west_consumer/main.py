@@ -2,7 +2,7 @@ import logging
 
 from esgf_core_utils.models.kafka.consumer import KafkaConsumer
 
-from message_processor import message_processor
+from west_consumer.message_processor import message_processor
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO

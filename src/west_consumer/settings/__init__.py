@@ -5,9 +5,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if os.environ.get("CONSUMER_NODE") == "ceda":
-    from settings.ceda import CEDAClientSettings as ClientSettings
+    from west_consumer.settings.ceda import CEDAClientSettings as ClientSettings
 else:
-    from settings.globus import GlobusClientSettings as ClientSettings
+    from west_consumer.settings.globus import GlobusClientSettings as ClientSettings
 
 
 class Settings(BaseSettings):

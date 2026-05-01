@@ -22,12 +22,6 @@ globus = [
     "jsonpatch>=1.33",
 ]
 
-[tool.poetry]
-packages = [
-    { include = "src" }
-]
-package-mode = true
-
 [build-system]
-build-backend = "poetry.core.masonry.api"
-requires = ["poetry-core"]
+build-backend = "uv_build"
+requires = ["uv_build<0.12"]

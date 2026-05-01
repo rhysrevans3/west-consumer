@@ -22,6 +22,6 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root --extras globus
 
-COPY ./src .
+COPY ./src/west_consumer .
 
 CMD ["python", "main.py"]
