@@ -1,6 +1,8 @@
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
+from importlib.metadata import version
 from urllib.parse import urljoin
 
 import httpx
@@ -10,6 +12,7 @@ from esgf_core_utils.models.kafka.events import (
     CreatePayload,
     KafkaErrorEvent,
     KafkaEvent,
+    KafkaSuccessEvent,
     PatchPayload,
     UpdatePayload,
 )
@@ -44,6 +47,25 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+        success_event = KafkaSuccessEvent(
+            data={
+                "type": event.data.type,
+                "payload": {
+                    "method": event.data.payload.method,
+                    "item_id": event.data.payload.item.id,
+                },
+            },
+            metadata={
+                "event_id": uuid.uuid4().hex,
+                "request_id": event.metadata.request_id,
+                "publisher": {
+                    "package": "west-consumer",
+                    "version": version("west-consumer"),
+                },
+                "time": datetime.now().isoformat(),
+                "schema_version": event.metadata.schema_version,
+            },
+        )
         try:
             collection_id = event.data.payload.collection_id
             item = event.data.payload.item
@@ -66,9 +88,10 @@ class CEDAMessageProcessor(MessageProcessor):
             response.raise_for_status()
 
             logging.info("SUCCESS: CREATE Item %s", item.id)
+
             self.producer.success(
                 key=item.id,
-                value=event.model_dump_json().encode("utf8"),
+                value=success_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -80,14 +103,12 @@ class CEDAMessageProcessor(MessageProcessor):
                 error_event = KafkaErrorEvent(
                     error={
                         "detail": exc.response.content,
-                        "instance": event.metadata.event_id,
+                        "instance": event.metadata.request_id,
                         "status": exc.response.status_code,
                         "title": f"{item.id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    data=event.data,
-                    metadata=event.metadata,
-                    event=event,
+                    **success_event.model_dump(),
                 )
 
                 self.producer.error(
@@ -106,6 +127,25 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+        success_event = KafkaSuccessEvent(
+            data={
+                "type": event.data.type,
+                "payload": {
+                    "method": event.data.payload.method,
+                    "item_id": event.data.payload.item_id,
+                },
+            },
+            metadata={
+                "event_id": uuid.uuid4().hex,
+                "request_id": event.metadata.request_id,
+                "publisher": {
+                    "package": "west-consumer",
+                    "version": version("west-consumer"),
+                },
+                "time": datetime.now().isoformat(),
+                "schema_version": event.metadata.schema_version,
+            },
+        )
         try:
             collection_id = (event.data.payload.collection_id,)
             item_id = event.data.payload.item_id
@@ -141,7 +181,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: PATCH Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=event.model_dump_json().encode("utf8"),
+                value=success_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -151,14 +191,12 @@ class CEDAMessageProcessor(MessageProcessor):
                 error_event = KafkaErrorEvent(
                     error={
                         "detail": exc.response.content,
-                        "instance": event.metadata.event_id,
+                        "instance": event.metadata.request_id,
                         "status": exc.response.status_code,
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    data=event.data,
-                    metadata=event.metadata,
-                    event=event,
+                    **success_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,
@@ -177,6 +215,25 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+        success_event = KafkaSuccessEvent(
+            data={
+                "type": event.data.type,
+                "payload": {
+                    "method": event.data.payload.method,
+                    "item_id": event.data.payload.item_id,
+                },
+            },
+            metadata={
+                "event_id": uuid.uuid4().hex,
+                "request_id": event.metadata.request_id,
+                "publisher": {
+                    "package": "west-consumer",
+                    "version": version("west-consumer"),
+                },
+                "time": datetime.now().isoformat(),
+                "schema_version": event.metadata.schema_version,
+            },
+        )
         try:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
@@ -198,7 +255,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: UPDATE Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=event.model_dump_json().encode("utf8"),
+                value=success_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -208,14 +265,12 @@ class CEDAMessageProcessor(MessageProcessor):
                 error_event = KafkaErrorEvent(
                     error={
                         "detail": exc.response.content,
-                        "instance": event.metadata.event_id,
+                        "instance": event.metadata.request_id,
                         "status": exc.response.status_code,
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    data=event.data,
-                    metadata=event.metadata,
-                    event=event,
+                    **success_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,
@@ -235,6 +290,25 @@ class CEDAMessageProcessor(MessageProcessor):
             collection_id (str): item's collection ID
             item_id (str): item's ID
         """
+        success_event = KafkaSuccessEvent(
+            data={
+                "type": event.data.type,
+                "payload": {
+                    "method": event.data.payload.method,
+                    "item_id": event.data.payload.item_id,
+                },
+            },
+            metadata={
+                "event_id": uuid.uuid4().hex,
+                "request_id": event.metadata.request_id,
+                "publisher": {
+                    "package": "west-consumer",
+                    "version": version("west-consumer"),
+                },
+                "time": datetime.now().isoformat(),
+                "schema_version": event.metadata.schema_version,
+            },
+        )
         try:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
@@ -250,7 +324,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: DELETE Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=event.model_dump_json().encode("utf8"),
+                value=success_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -260,14 +334,12 @@ class CEDAMessageProcessor(MessageProcessor):
                 error_event = KafkaErrorEvent(
                     error={
                         "detail": exc.response.content,
-                        "instance": event.metadata.event_id,
+                        "instance": event.metadata.request_id,
                         "status": exc.response.status_code,
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    data=event.data,
-                    metadata=event.metadata,
-                    event=event,
+                    **success_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,

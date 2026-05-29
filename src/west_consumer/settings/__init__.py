@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     node: Literal["ceda", "globus"]
-    client: ClientSettings = Field(discriminator="client_type")
+    client: ClientSettings
 
     debug: bool = False
 
