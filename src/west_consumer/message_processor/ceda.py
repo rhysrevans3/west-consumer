@@ -51,6 +51,7 @@ class CEDAMessageProcessor(MessageProcessor):
             data={
                 "type": event.data.type,
                 "payload": {
+                    "collection_id": event.data.payload.collection_id,
                     "method": event.data.payload.method,
                     "item_id": event.data.payload.item.id,
                 },
@@ -58,6 +59,7 @@ class CEDAMessageProcessor(MessageProcessor):
             metadata={
                 "event_id": uuid.uuid4().hex,
                 "request_id": event.metadata.request_id,
+                "auth": event.metadata.auth,
                 "publisher": {
                     "package": "west-consumer",
                     "version": version("west-consumer"),
@@ -131,6 +133,7 @@ class CEDAMessageProcessor(MessageProcessor):
             data={
                 "type": event.data.type,
                 "payload": {
+                    "collection_id": event.data.payload.collection_id,
                     "method": event.data.payload.method,
                     "item_id": event.data.payload.item_id,
                 },
@@ -138,6 +141,7 @@ class CEDAMessageProcessor(MessageProcessor):
             metadata={
                 "event_id": uuid.uuid4().hex,
                 "request_id": event.metadata.request_id,
+                "auth": event.metadata.auth,
                 "publisher": {
                     "package": "west-consumer",
                     "version": version("west-consumer"),
@@ -219,6 +223,7 @@ class CEDAMessageProcessor(MessageProcessor):
             data={
                 "type": event.data.type,
                 "payload": {
+                    "collection_id": event.data.payload.collection_id,
                     "method": event.data.payload.method,
                     "item_id": event.data.payload.item_id,
                 },
@@ -226,6 +231,7 @@ class CEDAMessageProcessor(MessageProcessor):
             metadata={
                 "event_id": uuid.uuid4().hex,
                 "request_id": event.metadata.request_id,
+                "auth": event.metadata.auth,
                 "publisher": {
                     "package": "west-consumer",
                     "version": version("west-consumer"),
@@ -294,6 +300,7 @@ class CEDAMessageProcessor(MessageProcessor):
             data={
                 "type": event.data.type,
                 "payload": {
+                    "collection_id": event.data.payload.collection_id,
                     "method": event.data.payload.method,
                     "item_id": event.data.payload.item_id,
                 },
@@ -301,6 +308,7 @@ class CEDAMessageProcessor(MessageProcessor):
             metadata={
                 "event_id": uuid.uuid4().hex,
                 "request_id": event.metadata.request_id,
+                "auth": event.metadata.auth,
                 "publisher": {
                     "package": "west-consumer",
                     "version": version("west-consumer"),
