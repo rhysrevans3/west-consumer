@@ -85,6 +85,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 url,
                 data=item.model_dump_json(exclude_unset=True, exclude_defaults=True),
                 auth=self.auth,
+                headers={"Content-Type": "application/json"},
             )
 
             response.raise_for_status()
