@@ -41,6 +41,7 @@ class CEDAMessageProcessor(MessageProcessor):
     def create_item(
         self,
         event: KafkaEvent,
+        offset: int,
     ) -> None:
         """Create item
 
@@ -66,6 +67,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 },
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
+                "kafka_offset": event.metadata.kafka_offset,
             },
         )
         try:
@@ -149,10 +151,11 @@ class CEDAMessageProcessor(MessageProcessor):
                 },
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
+                "kafka_offset": event.metadata.kafka_offset,
             },
         )
         try:
-            collection_id = (event.data.payload.collection_id,)
+            collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
             patch = event.data.payload.patch
 
@@ -239,6 +242,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 },
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
+                "kafka_offset": event.metadata.kafka_offset,
             },
         )
         try:
@@ -316,6 +320,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 },
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
+                "kafka_offset": event.metadata.kafka_offset,
             },
         )
         try:
@@ -369,6 +374,7 @@ class CEDAMessageProcessor(MessageProcessor):
         """
         try:
             data = json.loads(message.value().decode("utf8"))
+            data["metadata"]["kafka_offset"] = message.offset()
             event = KafkaEvent.model_validate(data)
 
             return event
