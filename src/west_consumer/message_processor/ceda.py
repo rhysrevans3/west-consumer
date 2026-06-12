@@ -429,6 +429,7 @@ class CEDAMessageProcessor(MessageProcessor):
             if settings.client.slack_hook:
                 payload = {
                     "kafka_message": message.value().decode("utf8"),
+                    "kafka_offset": message.offset(),
                     "exception": {
                         "type": type(error).__name__,
                         "error": str(error),
