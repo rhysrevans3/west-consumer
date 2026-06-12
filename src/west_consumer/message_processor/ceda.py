@@ -1,5 +1,6 @@
 import json
 import logging
+import traceback
 import uuid
 from datetime import datetime, timezone
 from importlib.metadata import version
@@ -427,8 +428,12 @@ class CEDAMessageProcessor(MessageProcessor):
         try:
             if settings.client.slack_hook:
                 payload = {
-                    "kafka_message": message.value(),
-                    "error": error,
+                    "kafka_message": message.value().decode("utf8"),
+                    "exception": {
+                        "type": type(error).__name__,
+                        "error": str(error),
+                        "traceback": traceback.format_exc(),
+                    },
                 }
 
                 httpx.post(
