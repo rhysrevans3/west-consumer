@@ -42,7 +42,6 @@ class CEDAMessageProcessor(MessageProcessor):
     def create_item(
         self,
         event: KafkaEvent,
-        offset: int,
     ) -> None:
         """Create item
 
@@ -472,6 +471,14 @@ class CEDAMessageProcessor(MessageProcessor):
 
         except Exception as exc:
             logging.error("Failed to process event: %s", message.value())
+            logging.error(
+                "Failed to process event: %s",
+                {
+                    "type": type(exc).__name__,
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
+            )
 
             self.post_to_slack(message=message, error=exc)
             raise exc
