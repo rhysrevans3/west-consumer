@@ -439,7 +439,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 httpx.post(
                     settings.client.slack_hook,
                     headers={"Content-Type": "application/json"},
-                    json={"text": json.dumps(payload)},
+                    json={"text": payload},
                 )
 
         except httpx.HTTPError as exc:
