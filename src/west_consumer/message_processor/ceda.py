@@ -427,19 +427,18 @@ class CEDAMessageProcessor(MessageProcessor):
         try:
             if settings.client.slack_hook:
                 payload = {
-                    "kafka_message": message.value().decode("utf8"),
-                    "kafka_offset": message.offset(),
-                    "exception": {
-                        "type": type(error).__name__,
-                        "error": str(error),
-                        "traceback": traceback.format_exc(),
-                    },
+                    "text": (
+                        f"*Message:* {message.value().decode('utf8')}\n"
+                        f"*Message Offset:* {message.offset()}\n"
+                        f"*Type:* `{type(error).__name__}`\n"
+                        f"*Error:* `{str(error)}`\n"
+                    )
                 }
 
                 httpx.post(
                     settings.client.slack_hook,
                     headers={"Content-Type": "application/json"},
-                    json={"text": payload},
+                    data=json.dumps(payload),
                 )
 
         except httpx.HTTPError as exc:
