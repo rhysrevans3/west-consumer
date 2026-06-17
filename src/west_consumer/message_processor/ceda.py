@@ -14,6 +14,7 @@ from esgf_core_utils.models.kafka.events import (
     KafkaErrorEvent,
     KafkaEvent,
     KafkaSuccessEvent,
+    OriginalEvent,
     PatchPayload,
     UpdatePayload,
 )
@@ -42,35 +43,14 @@ class CEDAMessageProcessor(MessageProcessor):
     def create_item(
         self,
         event: KafkaEvent,
+        result_event: KafkaSuccessEvent,
     ) -> None:
         """Create item
 
         Args:
             event (KafkaEvent): event to be processed
         """
-        success_event = KafkaSuccessEvent(
-            data={
-                "type": event.data.type,
-                "payload": {
-                    "collection_id": event.data.payload.collection_id,
-                    "method": event.data.payload.method,
-                    "item_id": event.data.payload.item.id,
-                },
-            },
-            metadata={
-                "event_id": uuid.uuid4().hex,
-                "request_id": event.metadata.request_id,
-                "auth": event.metadata.auth,
-                "publisher": {
-                    "package": "west-consumer",
-                    "version": version("west-consumer"),
-                },
-                "time": datetime.now().isoformat(),
-                "schema_version": event.metadata.schema_version,
-                "kafka_offset": event.metadata.kafka_offset,
-                "kafka_partition": event.metadata.kafka_partition,
-            },
-        )
+
         try:
             collection_id = event.data.payload.collection_id
             item = event.data.payload.item
@@ -97,7 +77,7 @@ class CEDAMessageProcessor(MessageProcessor):
 
             self.producer.success(
                 key=item.id,
-                value=success_event.model_dump_json().encode("utf8"),
+                value=result_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -114,7 +94,7 @@ class CEDAMessageProcessor(MessageProcessor):
                         "title": f"{item.id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    **success_event.model_dump(),
+                    **result_event.model_dump(),
                 )
 
                 self.producer.error(
@@ -127,35 +107,14 @@ class CEDAMessageProcessor(MessageProcessor):
     def patch_item(
         self,
         event: KafkaEvent,
+        result_event: KafkaSuccessEvent,
     ) -> None:
         """Patch Item
 
         Args:
             event (KafkaEvent): event to be processed
         """
-        success_event = KafkaSuccessEvent(
-            data={
-                "type": event.data.type,
-                "payload": {
-                    "collection_id": event.data.payload.collection_id,
-                    "method": event.data.payload.method,
-                    "item_id": event.data.payload.item_id,
-                },
-            },
-            metadata={
-                "event_id": uuid.uuid4().hex,
-                "request_id": event.metadata.request_id,
-                "auth": event.metadata.auth,
-                "publisher": {
-                    "package": "west-consumer",
-                    "version": version("west-consumer"),
-                },
-                "time": datetime.now().isoformat(),
-                "schema_version": event.metadata.schema_version,
-                "kafka_offset": event.metadata.kafka_offset,
-                "kafka_partition": event.metadata.kafka_partition,
-            },
-        )
+
         try:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
@@ -191,7 +150,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: PATCH Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=success_event.model_dump_json().encode("utf8"),
+                value=result_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -206,7 +165,7 @@ class CEDAMessageProcessor(MessageProcessor):
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    **success_event.model_dump(),
+                    **result_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,
@@ -219,35 +178,14 @@ class CEDAMessageProcessor(MessageProcessor):
     def update_item(
         self,
         event: KafkaEvent,
+        result_event: KafkaSuccessEvent,
     ) -> None:
         """Update item
 
         Args:
             event (KafkaEvent): event to be processed
         """
-        success_event = KafkaSuccessEvent(
-            data={
-                "type": event.data.type,
-                "payload": {
-                    "collection_id": event.data.payload.collection_id,
-                    "method": event.data.payload.method,
-                    "item_id": event.data.payload.item_id,
-                },
-            },
-            metadata={
-                "event_id": uuid.uuid4().hex,
-                "request_id": event.metadata.request_id,
-                "auth": event.metadata.auth,
-                "publisher": {
-                    "package": "west-consumer",
-                    "version": version("west-consumer"),
-                },
-                "time": datetime.now().isoformat(),
-                "schema_version": event.metadata.schema_version,
-                "kafka_offset": event.metadata.kafka_offset,
-                "kafka_partition": event.metadata.kafka_partition,
-            },
-        )
+
         try:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
@@ -269,7 +207,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: UPDATE Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=success_event.model_dump_json().encode("utf8"),
+                value=result_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -284,7 +222,7 @@ class CEDAMessageProcessor(MessageProcessor):
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    **success_event.model_dump(),
+                    **result_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,
@@ -297,6 +235,7 @@ class CEDAMessageProcessor(MessageProcessor):
     def delete_item(
         self,
         event: KafkaEvent,
+        result_event: KafkaSuccessEvent,
     ) -> None:
         """Delete item
 
@@ -304,29 +243,7 @@ class CEDAMessageProcessor(MessageProcessor):
             collection_id (str): item's collection ID
             item_id (str): item's ID
         """
-        success_event = KafkaSuccessEvent(
-            data={
-                "type": event.data.type,
-                "payload": {
-                    "collection_id": event.data.payload.collection_id,
-                    "method": event.data.payload.method,
-                    "item_id": event.data.payload.item_id,
-                },
-            },
-            metadata={
-                "event_id": uuid.uuid4().hex,
-                "request_id": event.metadata.request_id,
-                "auth": event.metadata.auth,
-                "publisher": {
-                    "package": "west-consumer",
-                    "version": version("west-consumer"),
-                },
-                "time": datetime.now().isoformat(),
-                "schema_version": event.metadata.schema_version,
-                "kafka_offset": event.metadata.kafka_offset,
-                "kafka_partition": event.metadata.kafka_partition,
-            },
-        )
+
         try:
             collection_id = event.data.payload.collection_id
             item_id = event.data.payload.item_id
@@ -342,7 +259,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: DELETE Item %s", item_id)
             self.producer.success(
                 key=item_id,
-                value=success_event.model_dump_json().encode("utf8"),
+                value=result_event.model_dump_json().encode("utf8"),
             )
 
         except httpx.HTTPError as exc:
@@ -357,7 +274,7 @@ class CEDAMessageProcessor(MessageProcessor):
                         "title": f"{item_id} already exists",
                         "type": "ItemAlreadyExists",
                     },
-                    **success_event.model_dump(),
+                    **result_event.model_dump(),
                 )
                 self.producer.error(
                     key=item_id,
@@ -367,7 +284,7 @@ class CEDAMessageProcessor(MessageProcessor):
             else:
                 raise
 
-    def load_event(self, message: KafkaMessage) -> KafkaEvent:
+    def load_event(self, message: KafkaMessage) -> tuple[KafkaEvent, KafkaSuccessEvent]:
         """Load event from message
 
         Args:
@@ -375,14 +292,40 @@ class CEDAMessageProcessor(MessageProcessor):
 
         Returns:
             KafkaEvent: STAC event
+            KafkaSuccessEvent:
         """
         try:
             data = json.loads(message.value().decode("utf8"))
-            data["metadata"]["kafka_offset"] = message.offset()
-            data["metadata"]["kafka_partition"] = message.partition()
             event = KafkaEvent.model_validate(data)
 
-            return event
+            result_event = KafkaSuccessEvent(
+                data={
+                    "type": event.data.type,
+                    "payload": {
+                        "collection_id": event.data.payload.collection_id,
+                        "method": event.data.payload.method,
+                        "item_id": event.data.payload.item_id,
+                    },
+                },
+                metadata={
+                    "event_id": uuid.uuid4().hex,
+                    "request_id": event.metadata.request_id,
+                    "auth": event.metadata.auth,
+                    "publisher": {
+                        "package": "west-consumer",
+                        "version": version("west-consumer"),
+                    },
+                    "time": datetime.now().isoformat(),
+                    "schema_version": event.metadata.schema_version,
+                },
+                original_event={
+                    "event_id": event.metadata.event_id,
+                    "offset": message.offset(),
+                    "partition": message.partition(),
+                },
+            )
+
+            return event, result_event
 
         except ValidationError as e:
             logging.error(
@@ -393,7 +336,7 @@ class CEDAMessageProcessor(MessageProcessor):
             )
             raise
 
-    def handle_event(self, event: KafkaEvent):
+    def handle_event(self, event: KafkaEvent, result_event: KafkaSuccessEvent) -> None:
         """Handle STAC event
 
         Args:
@@ -406,15 +349,15 @@ class CEDAMessageProcessor(MessageProcessor):
 
             case CreatePayload():
                 logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
-                self.create_item(event=event)
+                self.create_item(event=event, result_event=result_event)
 
             case UpdatePayload():
                 logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
-                self.update_item(event=event)
+                self.update_item(event=event, result_event=result_event)
 
             case PatchPayload():
                 logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
-                self.patch_item(event=event)
+                self.patch_item(event=event, result_event=result_event)
 
             case _:
                 logging.error(
@@ -472,9 +415,9 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 raise KafkaException(message.error())
 
-            event = self.load_event(message=message)
+            event, result_event = self.load_event(message=message)
 
-            self.handle_event(event=event)
+            self.handle_event(event=event, result_event=result_event)
 
         except Exception as exc:
             logging.error("Failed to process event: %s", message.value())
