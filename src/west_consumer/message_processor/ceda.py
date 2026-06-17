@@ -68,6 +68,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
                 "kafka_offset": event.metadata.kafka_offset,
+                "kafka_partition": event.metadata.kafka_partition,
             },
         )
         try:
@@ -152,6 +153,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
                 "kafka_offset": event.metadata.kafka_offset,
+                "kafka_partition": event.metadata.kafka_partition,
             },
         )
         try:
@@ -243,6 +245,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
                 "kafka_offset": event.metadata.kafka_offset,
+                "kafka_partition": event.metadata.kafka_partition,
             },
         )
         try:
@@ -321,6 +324,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 "time": datetime.now().isoformat(),
                 "schema_version": event.metadata.schema_version,
                 "kafka_offset": event.metadata.kafka_offset,
+                "kafka_partition": event.metadata.kafka_partition,
             },
         )
         try:
@@ -375,14 +379,16 @@ class CEDAMessageProcessor(MessageProcessor):
         try:
             data = json.loads(message.value().decode("utf8"))
             data["metadata"]["kafka_offset"] = message.offset()
+            data["metadata"]["kafka_partition"] = message.partition()
             event = KafkaEvent.model_validate(data)
 
             return event
 
         except ValidationError as e:
             logging.error(
-                "Validation error at offset %s: %s.",
+                "Validation error at offset %s | partition %s : %s.",
                 message.offset(),
+                message.partition(),
                 e,
             )
             raise
@@ -430,6 +436,7 @@ class CEDAMessageProcessor(MessageProcessor):
                     "text": (
                         f"*Message:* {message.value().decode('utf8')}\n"
                         f"*Message Offset:* {message.offset()}\n"
+                        f"*Message Partition:* {message.partition()}\n"
                         f"*Type:* `{type(error).__name__}`\n"
                         f"*Error:* `{str(error)}`\n"
                     )
@@ -454,8 +461,9 @@ class CEDAMessageProcessor(MessageProcessor):
         try:
             if message.error():
                 logging.error(
-                    "Message error at offset %s: %s.",
+                    "Message error at offset %s | partition %s : %s.",
                     message.offset(),
+                    message.partition(),
                     message.error(),
                 )
                 logging.error(
