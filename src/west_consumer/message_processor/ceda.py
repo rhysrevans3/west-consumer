@@ -49,6 +49,7 @@ class CEDAMessageProcessor(MessageProcessor):
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
+        reraise=True,
     )
     def create_item(
         self,
@@ -118,6 +119,7 @@ class CEDAMessageProcessor(MessageProcessor):
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
+        reraise=True,
     )
     def patch_item(
         self,
@@ -194,6 +196,7 @@ class CEDAMessageProcessor(MessageProcessor):
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
+        reraise=True,
     )
     def update_item(
         self,
@@ -256,6 +259,7 @@ class CEDAMessageProcessor(MessageProcessor):
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
+        reraise=True,
     )
     def delete_item(
         self,
