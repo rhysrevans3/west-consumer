@@ -333,7 +333,11 @@ class CEDAMessageProcessor(MessageProcessor):
                     "payload": {
                         "collection_id": event.data.payload.collection_id,
                         "method": event.data.payload.method,
-                        "item_id": event.data.payload.item_id,
+                        "item_id": (
+                            event.data.payload.item.id
+                            if isinstance(event.data.payload, CreatePayload)
+                            else event.data.payload.item_id
+                        ),
                     },
                 },
                 metadata={
