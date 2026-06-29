@@ -15,6 +15,7 @@ dependencies = [
 ceda = [
     "httpx>=0.28.1",
     "httpx-auth>=0.23.1",
+    "tenacity>=9.1.4",
 ]
 globus = [
     "boto3>=1.35.49",

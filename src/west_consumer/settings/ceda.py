@@ -12,4 +12,7 @@ class CEDAClientSettings(BaseModel):
 
     stac_server: str
 
+    max_retries: int = 3
+    max_retry_time: int = 60
+
     slack_hook: str | None = None

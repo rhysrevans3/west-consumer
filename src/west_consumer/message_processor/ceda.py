@@ -14,7 +14,6 @@ from esgf_core_utils.models.kafka.events import (
     KafkaErrorEvent,
     KafkaEvent,
     KafkaSuccessEvent,
-    OriginalEvent,
     PatchPayload,
     UpdatePayload,
 )
@@ -22,6 +21,12 @@ from esgf_core_utils.models.kafka.message_processor import MessageProcessor
 from esgf_core_utils.models.kafka.producer import KafkaProducer
 from httpx_auth import OAuth2ClientCredentials
 from pydantic_core import ValidationError
+from tenacity import (
+    before_sleep_log,
+    retry,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from west_consumer.settings import settings
 
@@ -40,6 +45,11 @@ class CEDAMessageProcessor(MessageProcessor):
         self.client = httpx.Client(timeout=5.0, verify=False)
         self.producer = KafkaProducer()
 
+    @retry(
+        wait=wait_exponential_jitter(max=settings.client.max_retry_time),
+        stop=stop_after_attempt(settings.client.max_retries),
+        before_sleep=before_sleep_log(logging, logging.WARNING),
+    )
     def create_item(
         self,
         event: KafkaEvent,
@@ -80,7 +90,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 value=result_event.model_dump_json().encode("utf8"),
             )
 
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
             if (
                 "code" in response.json()
@@ -104,6 +114,11 @@ class CEDAMessageProcessor(MessageProcessor):
             else:
                 raise
 
+    @retry(
+        wait=wait_exponential_jitter(max=settings.client.max_retry_time),
+        stop=stop_after_attempt(settings.client.max_retries),
+        before_sleep=before_sleep_log(logging, logging.WARNING),
+    )
     def patch_item(
         self,
         event: KafkaEvent,
@@ -153,7 +168,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 value=result_event.model_dump_json().encode("utf8"),
             )
 
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
 
@@ -175,6 +190,11 @@ class CEDAMessageProcessor(MessageProcessor):
             else:
                 raise
 
+    @retry(
+        wait=wait_exponential_jitter(max=settings.client.max_retry_time),
+        stop=stop_after_attempt(settings.client.max_retries),
+        before_sleep=before_sleep_log(logging, logging.WARNING),
+    )
     def update_item(
         self,
         event: KafkaEvent,
@@ -210,7 +230,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 value=result_event.model_dump_json().encode("utf8"),
             )
 
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
 
@@ -232,6 +252,11 @@ class CEDAMessageProcessor(MessageProcessor):
             else:
                 raise
 
+    @retry(
+        wait=wait_exponential_jitter(max=settings.client.max_retry_time),
+        stop=stop_after_attempt(settings.client.max_retries),
+        before_sleep=before_sleep_log(logging, logging.WARNING),
+    )
     def delete_item(
         self,
         event: KafkaEvent,
@@ -262,7 +287,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 value=result_event.model_dump_json().encode("utf8"),
             )
 
-        except httpx.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
                 logging.error("FAILED: DELETE Item %s: %s", item_id, response.content)
 
@@ -364,7 +389,7 @@ class CEDAMessageProcessor(MessageProcessor):
                     "FAILED: No Payload match found for : %s",
                     event.data.payload.item_id,
                 )
-                raise Exception(f"No Payload match found for : {event}")
+                raise ValueError(f"No Payload match found for : {event}")
 
     def post_to_slack(self, message: KafkaMessage, error: Exception) -> None:
         """Post kafka message and error to Slack
@@ -377,12 +402,23 @@ class CEDAMessageProcessor(MessageProcessor):
             if settings.client.slack_hook:
                 payload = {
                     "text": (
-                        f"*Message:* {message.value().decode('utf8')}\n"
                         f"*Message Offset:* {message.offset()}\n"
                         f"*Message Partition:* {message.partition()}\n"
                         f"*Type:* `{type(error).__name__}`\n"
                         f"*Error:* `{str(error)}`\n"
-                    )
+                    ),
+                    "blocks": [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": (
+                                    f"*MESSAGE*"
+                                    f"```json\n{json.dumps(message.value().decode('utf8'))}\n```"
+                                ),
+                            },
+                        }
+                    ],
                 }
 
                 httpx.post(
