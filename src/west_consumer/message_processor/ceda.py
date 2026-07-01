@@ -2,6 +2,7 @@ import json
 import logging
 import traceback
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.metadata import version
 from urllib.parse import urljoin
@@ -29,6 +30,14 @@ from tenacity import (
 )
 
 from west_consumer.settings import settings
+
+
+@dataclass
+class KnownError(Exception):
+    error_event: KafkaErrorEvent
+
+    def __str__(self):
+        return self.error_event.error.detail
 
 
 class CEDAMessageProcessor(MessageProcessor):
@@ -86,11 +95,6 @@ class CEDAMessageProcessor(MessageProcessor):
 
             logging.info("SUCCESS: CREATE Item %s", item.id)
 
-            self.producer.success(
-                key=item.id,
-                value=result_event.model_dump_json().encode("utf8"),
-            )
-
         except httpx.HTTPStatusError as exc:
             logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
             if (
@@ -107,11 +111,8 @@ class CEDAMessageProcessor(MessageProcessor):
                     },
                     **result_event.model_dump(),
                 )
+                raise KnownError(error_event=error_event) from exc
 
-                self.producer.error(
-                    key=item.id,
-                    value=error_event.model_dump_json().encode("utf-8"),
-                )
             else:
                 raise
 
@@ -165,10 +166,6 @@ class CEDAMessageProcessor(MessageProcessor):
             response.raise_for_status()
 
             logging.info("SUCCESS: PATCH Item %s", item_id)
-            self.producer.success(
-                key=item_id,
-                value=result_event.model_dump_json().encode("utf8"),
-            )
 
         except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
@@ -184,10 +181,7 @@ class CEDAMessageProcessor(MessageProcessor):
                     },
                     **result_event.model_dump(),
                 )
-                self.producer.error(
-                    key=item_id,
-                    value=error_event.model_dump_json().encode("utf-8"),
-                )
+                raise KnownError(error_event=error_event) from exc
 
             else:
                 raise
@@ -228,10 +222,6 @@ class CEDAMessageProcessor(MessageProcessor):
             response.raise_for_status()
 
             logging.info("SUCCESS: UPDATE Item %s", item_id)
-            self.producer.success(
-                key=item_id,
-                value=result_event.model_dump_json().encode("utf8"),
-            )
 
         except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
@@ -247,10 +237,7 @@ class CEDAMessageProcessor(MessageProcessor):
                     },
                     **result_event.model_dump(),
                 )
-                self.producer.error(
-                    key=item_id,
-                    value=error_event.model_dump_json().encode("utf-8"),
-                )
+                raise KnownError(error_event=error_event) from exc
 
             else:
                 raise
@@ -286,10 +273,6 @@ class CEDAMessageProcessor(MessageProcessor):
             response.raise_for_status()
 
             logging.info("SUCCESS: DELETE Item %s", item_id)
-            self.producer.success(
-                key=item_id,
-                value=result_event.model_dump_json().encode("utf8"),
-            )
 
         except httpx.HTTPStatusError as exc:
             if response.json()["code"] == "NotFoundError":
@@ -305,10 +288,7 @@ class CEDAMessageProcessor(MessageProcessor):
                     },
                     **result_event.model_dump(),
                 )
-                self.producer.error(
-                    key=item_id,
-                    value=error_event.model_dump_json().encode("utf-8"),
-                )
+                raise KnownError(error_event=error_event) from exc
 
             else:
                 raise
@@ -378,26 +358,38 @@ class CEDAMessageProcessor(MessageProcessor):
         Raises:
             Exception: Failed to match case
         """
-        match event.data.payload:
+        try:
+            match event.data.payload:
 
-            case CreatePayload():
-                logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
-                self.create_item(event=event, result_event=result_event)
+                case CreatePayload():
+                    logging.info("ATTEMPT CREATE Item: %s", event.data.payload.item.id)
+                    self.create_item(event=event, result_event=result_event)
 
-            case UpdatePayload():
-                logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
-                self.update_item(event=event, result_event=result_event)
+                case UpdatePayload():
+                    logging.info("ATTEMPT UPDATE Item: %s", event.data.payload.item_id)
+                    self.update_item(event=event, result_event=result_event)
 
-            case PatchPayload():
-                logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
-                self.patch_item(event=event, result_event=result_event)
+                case PatchPayload():
+                    logging.info("ATTEMPT PATCH Item: %s", event.data.payload.item_id)
+                    self.patch_item(event=event, result_event=result_event)
 
-            case _:
-                logging.error(
-                    "FAILED: No Payload match found for : %s",
-                    event.data.payload.item_id,
-                )
-                raise ValueError(f"No Payload match found for : {event}")
+                case _:
+                    logging.error(
+                        "FAILED: No Payload match found for : %s",
+                        event.data.payload.item_id,
+                    )
+                    raise ValueError(f"No Payload match found for : {event}")
+
+            self.producer.success(
+                key=result_event.data.payload.item_id,
+                value=result_event.model_dump_json().encode("utf8"),
+            )
+
+        except KnownError as exc:
+            self.producer.error(
+                key=exc.error_event.data.payload.item_id,
+                value=exc.error_event.model_dump_json().encode("utf-8"),
+            )
 
     def post_to_slack(self, message: KafkaMessage, error: Exception) -> None:
         """Post kafka message and error to Slack
