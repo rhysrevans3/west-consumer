@@ -25,6 +25,7 @@ from pydantic_core import ValidationError
 from tenacity import (
     before_sleep_log,
     retry,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
 )
@@ -34,6 +35,10 @@ from west_consumer.settings import settings
 
 @dataclass
 class KnownError(Exception):
+    """
+    Known Error Exception
+    """
+
     error_event: KafkaErrorEvent
 
     def __str__(self):
@@ -55,6 +60,7 @@ class CEDAMessageProcessor(MessageProcessor):
         self.producer = KafkaProducer()
 
     @retry(
+        retry=retry_if_not_exception_type(KnownError),
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
@@ -113,10 +119,10 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 raise KnownError(error_event=error_event) from exc
 
-            else:
-                raise
+            raise
 
     @retry(
+        retry=retry_if_not_exception_type(KnownError),
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
@@ -183,10 +189,10 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 raise KnownError(error_event=error_event) from exc
 
-            else:
-                raise
+            raise
 
     @retry(
+        retry=retry_if_not_exception_type(KnownError),
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
@@ -239,10 +245,10 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 raise KnownError(error_event=error_event) from exc
 
-            else:
-                raise
+            raise
 
     @retry(
+        retry=retry_if_not_exception_type(KnownError),
         wait=wait_exponential_jitter(max=settings.client.max_retry_time),
         stop=stop_after_attempt(settings.client.max_retries),
         before_sleep=before_sleep_log(logging, logging.WARNING),
@@ -290,8 +296,7 @@ class CEDAMessageProcessor(MessageProcessor):
                 )
                 raise KnownError(error_event=error_event) from exc
 
-            else:
-                raise
+            raise
 
     def load_event(self, message: KafkaMessage) -> tuple[KafkaEvent, KafkaSuccessEvent]:
         """Load event from message
