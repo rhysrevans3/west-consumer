@@ -105,7 +105,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
             if (
                 "code" in response.json()
-                and response.json()["code"] == "ItemAlreadyExistsError"
+                and response.json().get("code") == "ItemAlreadyExistsError"
             ):
                 error_event = KafkaErrorEvent(
                     error={
@@ -162,6 +162,8 @@ class CEDAMessageProcessor(MessageProcessor):
                 else patch.model_dump(exclude_unset=True, exclude_defaults=True)
             )
 
+            logging.info("Patch data %s", data)
+
             response = self.client.patch(
                 url,
                 json=data,
@@ -174,7 +176,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: PATCH Item %s", item_id)
 
         except httpx.HTTPStatusError as exc:
-            if response.json()["code"] == "NotFoundError":
+            if response.json().get("code") == "NotFoundError":
                 logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
 
                 error_event = KafkaErrorEvent(
@@ -230,7 +232,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: UPDATE Item %s", item_id)
 
         except httpx.HTTPStatusError as exc:
-            if response.json()["code"] == "NotFoundError":
+            if response.json().get("code") == "NotFoundError":
                 logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
 
                 error_event = KafkaErrorEvent(
@@ -281,7 +283,7 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: DELETE Item %s", item_id)
 
         except httpx.HTTPStatusError as exc:
-            if response.json()["code"] == "NotFoundError":
+            if response.json().get("code") == "NotFoundError":
                 logging.error("FAILED: DELETE Item %s: %s", item_id, response.content)
 
                 error_event = KafkaErrorEvent(
