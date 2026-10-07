@@ -76,6 +76,7 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+        response = None
 
         try:
             collection_id = event.data.payload.collection_id
@@ -103,6 +104,9 @@ class CEDAMessageProcessor(MessageProcessor):
 
         except httpx.HTTPStatusError as exc:
             logging.error("FAIL: CREATE Item %s: %s", item.id, response.content)
+            if response:
+                logging.error("FAIL: response %s", response.json())
+
             if (
                 "code" in response.json()
                 and response.json().get("code") == "ItemAlreadyExistsError"
@@ -138,6 +142,8 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+
+        response = None
 
         try:
             collection_id = event.data.payload.collection_id
@@ -176,8 +182,11 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: PATCH Item %s", item_id)
 
         except httpx.HTTPStatusError as exc:
+            logging.error("FAIL: PATCH Item %s: %s", item_id, exc)
+            if response:
+                logging.error("FAIL: response %s", response.json())
+
             if response.json().get("code") == "NotFoundError":
-                logging.error("FAIL: PATCH Item %s: %s", item_id, response.content)
 
                 error_event = KafkaErrorEvent(
                     error={
@@ -210,6 +219,7 @@ class CEDAMessageProcessor(MessageProcessor):
         Args:
             event (KafkaEvent): event to be processed
         """
+        response = None
 
         try:
             collection_id = event.data.payload.collection_id
@@ -232,9 +242,11 @@ class CEDAMessageProcessor(MessageProcessor):
             logging.info("SUCCESS: UPDATE Item %s", item_id)
 
         except httpx.HTTPStatusError as exc:
-            if response.json().get("code") == "NotFoundError":
-                logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
+            logging.error("FAIL: UPDATE Item %s: %s", item_id, exc)
+            if response:
+                logging.error("FAIL: response %s", response.json())
 
+            if response.json().get("code") == "NotFoundError":
                 error_event = KafkaErrorEvent(
                     error={
                         "detail": exc.response.content,
@@ -475,3 +487,48 @@ class CEDAMessageProcessor(MessageProcessor):
 
             self.post_to_slack(message=message, error=exc)
             raise exc
+
+
+aa = {
+    "data": {
+        "type": "STAC",
+        "payload": {
+            "collection_id": "CMIP6",
+            "method": "PATCH",
+            "patch": [
+                {
+                    "path": "/assets/globus/alternate/g-230744.554f69.8540.data.globus.org",
+                    "op": "add",
+                    "value": {
+                        "href": "https://app.globus.org/file-manager?origin_id=dba0d7c0-1f63-44d1-bcd0-76865d3d44a0&origin_path=%2FCMIP6%2FAerChemMIP%2FBCC%2FBCC-ESM1%  2Fhist-piAer%2Fr1i1p1f1%2FAERmon%2Fc2h6%2Fgn%2Fv20200511%2F",
+                        "alternate:name": "g-230744.554f69.8540.data.globus.org",
+                    },
+                },
+                {
+                    "path": "/assets/c2h6_AERmon_BCC-ESM1_hist-piAer_r1i1p1f1_gn_185001-201412.nc/alternate/g-230744.554f69.8540.data.globus.org",
+                    "op": "add",
+                    "value": {
+                        "href": "https://g-230744.554f69.8540.data.globus.org/CMIP6/AerChemMIP/BCC/BCC-ESM1/hist-piAer/r1i1p1f1/AERmon/c2h6/gn/v20200511/c2h6_AERmon_BC  C-ESM1_hist-piAer_r1i1p1f1_gn_185001-201412.nc",
+                        "alternate:name": "g-230744.554f69.8540.data.globus.org",
+                    },
+                },
+            ],
+            "item_id": "CMIP6.AerChemMIP.BCC.BCC-ESM1.hist-piAer.r1i1p1f1.AERmon.c2h6.gn.v20200511",
+        },
+    },
+    "metadata": {
+        "auth": {
+            "auth_policy_id": null,
+            "requester_data": {
+                "client_id": "8f208aec-ef2e-4dae-b0bb-ffed74b27f47",
+                "iss": "https://auth.globus.org",
+                "sub": "8f208aec-ef2e-4dae-b0bb-ffed74b27f47",
+            },
+        },
+        "event_id": "757f417e2e8149a599a3881d386ae5cc",
+        "publisher": {"package": "", "version": ""},
+        "request_id": "d9fa7ffc8dc841cd86b6bb393044e1cd",
+        "time": "2026-10-06T02:24:13.326267",
+        "schema_version": "1.0.0",
+    },
+}
